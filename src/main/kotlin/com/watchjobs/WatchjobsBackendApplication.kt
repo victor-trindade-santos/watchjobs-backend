@@ -1,4 +1,4 @@
-package com.watchjobs.watchjobs_backend
+package com.watchjobs
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication

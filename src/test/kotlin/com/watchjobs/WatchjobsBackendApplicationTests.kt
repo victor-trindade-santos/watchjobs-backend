@@ -1,4 +1,4 @@
-package com.watchjobs.watchjobs_backend
+package com.watchjobs
 
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
