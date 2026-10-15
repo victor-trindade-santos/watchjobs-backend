@@ -33,7 +33,7 @@ class Application(
     @field:JoinColumn(name = "application_stage_id", nullable = false)
     var stage: ApplicationStage? = null,
 
-    @field:Column(name = "application_status", length = 30, nullable = false)
+    @field:Column(name = "application_status", length = 20, nullable = false)
     var status: String = "",
 
     @field:Column(name = "start_date", nullable = false)

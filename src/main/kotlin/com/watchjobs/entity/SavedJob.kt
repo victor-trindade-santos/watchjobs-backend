@@ -25,6 +25,10 @@ class SavedJob(
     @field:Column(name = "saved_job_id")
     var id: Long? = null,
 
+    @field:ManyToOne(fetch = FetchType.LAZY)
+    @field:JoinColumn(name = "users_id", nullable = false)
+    var user: User? = null,
+
     @field:Column(name = "position_role", length = 255, nullable = false)
     var positionRole: String = "",
 
