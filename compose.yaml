@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: 'postgres:17'
+    environment:
+      POSTGRES_USER: watchjobs
+      POSTGRES_PASSWORD: watchjobs
+      POSTGRES_DB: watchjobs
+    ports:
+      - '5432:5432'
+    volumes:
+      - watchjobs-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watchjobs -d watchjobs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  watchjobs-pgdata:
+
+  
