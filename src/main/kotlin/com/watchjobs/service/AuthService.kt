@@ -5,16 +5,17 @@ import com.watchjobs.dto.request.SignupRequest
 import com.watchjobs.dto.response.AuthResponse
 import com.watchjobs.dto.response.UserResponse
 import com.watchjobs.entity.User
+import com.watchjobs.exception.BusinessException
+import com.watchjobs.exception.ConflictException
 import com.watchjobs.repository.UserRepository
 import com.watchjobs.security.JwtUtil
-import org.springframework.http.HttpStatus
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.AuthenticationException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDateTime
 import com.watchjobs.mapper.UserMapper
 
@@ -31,10 +32,10 @@ class AuthService(
     fun signup(request: SignupRequest): UserResponse {
         val email = request.email.trim().lowercase()
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Email já cadastrado")
+            throw ConflictException("Email já cadastrado")
         }
         if (request.password != request.confirmPassword) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "A senha e a confirmação de senha não coincidem")
+            throw BusinessException("A senha e a confirmação de senha não coincidem")
         }
         val user = userRepository.save(
             userMapper.toEntity(request, requireNotNull(passwordEncoder.encode(request.password)){
@@ -49,11 +50,11 @@ class AuthService(
         val email = request.email.trim().lowercase()
         try {
            authenticationManager.authenticate(UsernamePasswordAuthenticationToken(email, request.password))  
-        } catch (ex: BadCredentialsException) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos")
+        } catch (ex: AuthenticationException) {
+            throw BadCredentialsException("E-mail ou senha inválidos")
         }
         val user = userRepository.findByEmailIgnoreCase(email)
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos")
+            ?: throw BadCredentialsException("E-mail ou senha inválidos")
         user.lastLoginAt = LocalDateTime.now()
         userRepository.save(user)
         return AuthResponse(
