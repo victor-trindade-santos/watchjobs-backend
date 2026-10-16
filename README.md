@@ -16,6 +16,9 @@
    - [7.2 Sem Docker e sem instalar nenhum banco (H2)](#72-sem-docker-e-sem-instalar-nenhum-banco-h2)
    - [7.3 Com um PostgreSQL já instalado (sem Docker)](#73-com-um-postgresql-já-instalado-sem-docker)
    - [Acesso e testes](#acesso-e-testes)
+- [Checklist dos requisitos da prova](#checklist-dos-requisitos-da-prova)
+   - [Parte 1: backend](#parte-1-backend)
+   - [Critérios de avaliação](#critérios-de-avaliação)
 
 ## 1. Projeto e grupo
 
@@ -169,3 +172,77 @@ O Flyway cria o schema `core` e aplica as migrations na primeira subida.
 ```powershell
 .\gradlew.bat test --tests "com.watchjobs.controller.*"
 ```
+
+## Checklist dos requisitos da prova
+
+Como este repositório atende à **Parte 1 (backend, 8,0 pontos)** e aos critérios de avaliação. Os caminhos partem de `src/main/kotlin/com/watchjobs/`.
+
+### Parte 1: backend
+
+- [x] **Dependências exigidas (Kotlin + Spring Boot + Spring Security):** Spring Web, Spring Data JPA, Validation, Spring Security e PostgreSQL como banco relacional, todas no [`build.gradle.kts`](build.gradle.kts). O schema é versionado pelo Flyway em `src/main/resources/db/migration/`.
+
+- [x] **1a. Entidades JPA (1,0):** duas entidades por integrante, cada uma com mais de 5 campos além do id e pelo menos 3 tipos da lista.
+  - [`SavedJob`](src/main/kotlin/com/watchjobs/entity/SavedJob.kt): 16 campos além do id. Tipos **String** (cargo, empresa, URL, local, moeda, notas), **Double** (salário mínimo e máximo) e **LocalDateTime** (`savedAt`, `statusUpdatedAt`).
+  - [`Application`](src/main/kotlin/com/watchjobs/entity/Application.kt): 6 campos além do id e das relações. Tipos **String** (status, notas, feedback), **LocalDate** (`startDate`, `endDate`) e **LocalDateTime** (`interviewAt`).
+  - As duas têm `@Entity`, `@Table`, `@Id` com `@GeneratedValue(IDENTITY)` e `@Column(length = ...)` em **todo** campo String.
+  - O Hibernate roda em `ddl-auto=validate`, então as entidades precisam bater com o banco criado pelo Flyway.
+
+- [x] **1b. Repositórios JPA com JPQL e LIKE (1,0):** cada repositório tem uma consulta `@Query` em JPQL com `LIKE` e busca parcial (`lower(...) LIKE lower(concat('%', :q, '%'))`) num campo de texto.
+  - [`SavedJobRepository.search`](src/main/kotlin/com/watchjobs/repository/SavedJobRepository.kt): cargo ou empresa.
+  - [`ApplicationRepository.search`](src/main/kotlin/com/watchjobs/repository/ApplicationRepository.kt): notas, feedback, ou cargo e empresa da vaga (`a.savedJob.positionRole`).
+  - [`UserRepository.searchByName`](src/main/kotlin/com/watchjobs/repository/UserRepository.kt) e [`ApplicationStageRepository.searchByName`](src/main/kotlin/com/watchjobs/repository/ApplicationStageRepository.kt): também têm a consulta.
+  - Na API, as buscas ficam em `GET /saved-jobs?q=` e `GET /applications?q=`.
+
+- [x] **1c. Services com CRUD (1,0):** [`SavedJobService`](src/main/kotlin/com/watchjobs/service/SavedJobService.kt) e [`ApplicationService`](src/main/kotlin/com/watchjobs/service/ApplicationService.kt) têm `create`, `findAll` (lista, com busca opcional), `findById`, `update` e `delete`, todos com `@Transactional`.
+  - Eles também aplicam as regras de negócio: o status da vaga é sincronizado com a candidatura, há uma candidatura por vaga, o salário mínimo não pode passar do máximo e um registro de outro usuário responde 404.
+
+- [x] **1d. Controllers REST (1,0):** [`SavedJobController`](src/main/kotlin/com/watchjobs/controller/SavedJobController.kt) (`/saved-jobs`) e [`ApplicationController`](src/main/kotlin/com/watchjobs/controller/ApplicationController.kt) (`/applications`) têm as mesmas rotas:
+  - `GET` lista todos.
+  - `GET /{id}` busca por id.
+  - `POST` cria e responde 201.
+  - `PUT /{id}` atualiza.
+  - `DELETE /{id}` remove e responde 204.
+
+- [x] **1e. Autenticação com `/signin` e `/signup` (1,0):** [`AuthController`](src/main/kotlin/com/watchjobs/controller/AuthController.kt).
+  - O `/signin` autentica pelo **Spring Security**: o [`AuthService`](src/main/kotlin/com/watchjobs/service/AuthService.kt) chama `authenticationManager.authenticate(UsernamePasswordAuthenticationToken(...))`.
+  - Com as credenciais válidas, a resposta traz o **token JWT** (`{ token, tokenType, expiresAt, user }`). Com credenciais inválidas, a resposta é 401.
+  - O `/signup` cria a conta com a senha em BCrypt.
+
+- [x] **1f. Utilitário JWT e configuração do Spring Security (1,0):**
+  - [`JwtUtil`](src/main/kotlin/com/watchjobs/security/JwtUtil.kt): `generateToken` (gera), `isValid` (valida assinatura e validade) e `extractUsername` (lê o usuário do token validado).
+  - [`SecurityConfig`](src/main/kotlin/com/watchjobs/config/SecurityConfig.kt):
+    - `PasswordEncoder` (BCrypt).
+    - `AuthenticationManager` com `DaoAuthenticationProvider`.
+    - O filtro JWT [`JwtAuthenticationFilter`](src/main/kotlin/com/watchjobs/security/JwtAuthenticationFilter.kt) (`OncePerRequestFilter`), registrado antes do `UsernamePasswordAuthenticationFilter`.
+    - A `SecurityFilterChain`, com sessão stateless e CORS.
+    - As regras de autorização: `POST /signin` e `POST /signup` públicas, todas as outras rotas exigem autenticação, e uma requisição sem token recebe 401 em JSON.
+
+- [x] **1g. Dois DTOs por entidade e camada mapper (1,0):**
+  - Request e Response em `dto/request/` e `dto/response/`: [`SavedJobRequest`](src/main/kotlin/com/watchjobs/dto/request/SavedJobRequest.kt) / [`SavedJobResponse`](src/main/kotlin/com/watchjobs/dto/response/SavedJobResponse.kt) e [`ApplicationRequest`](src/main/kotlin/com/watchjobs/dto/request/ApplicationRequest.kt) / [`ApplicationResponse`](src/main/kotlin/com/watchjobs/dto/response/ApplicationResponse.kt).
+  - Mappers em `mapper/`, com `toEntity`, `updateEntity` e `toResponse`: [`SavedJobMapper`](src/main/kotlin/com/watchjobs/mapper/SavedJobMapper.kt), [`ApplicationMapper`](src/main/kotlin/com/watchjobs/mapper/ApplicationMapper.kt), `UserMapper` e `ApplicationStageMapper`.
+  - Os controllers recebem e devolvem só DTOs, nunca as entidades.
+
+- [x] **1h. Bean Validation nos DTOs de Request (1,0):** com `@field:`, mensagens em português e `@Valid` nos controllers. Uma requisição inválida responde 400 com os erros por campo. Cada DTO tem pelo menos 2 regras diferentes:
+  - `SavedJobRequest`: `@NotBlank`, `@Size`, `@Pattern`, `@PositiveOrZero` e `@NotNull`.
+  - `ApplicationRequest`: `@NotNull`, `@Positive`, `@NotBlank`, `@Pattern`, `@PastOrPresent` e `@Size`.
+  - `SignupRequest`: `@NotBlank`, `@Size`, `@NotNull`, `@Past`, `@Email` e `@Pattern`.
+  - `SigninRequest`: `@NotBlank` e `@Email`.
+
+### Critérios de avaliação
+
+- [x] **3a. Professor como colaborador:** `antoniorcn@hotmail.com` foi convidado neste repositório e no do frontend.
+- [x] **3b e 3c. Autoria no histórico Git:** o histórico tem commits pequenos por etapa, com o item da prova na mensagem, feitos pelo integrante.
+- [x] **3d. Compila e roda:**
+  - `.\gradlew.bat bootRun` sobe a API com o PostgreSQL e as migrations.
+  - Sem Docker, `.\gradlew.bat bootRun -Ph2` sobe a API com o H2 embutido, sem instalar nenhum banco (seção 7.2).
+  - O [`requests.http`](requests.http) exercita as 38 requisições da demonstração, incluindo os casos de erro.
+  - `.\gradlew.bat test --tests "com.watchjobs.controller.*"` roda os testes automatizados.
+- [x] **3e. README com os 7 itens:**
+  - i. Nome do projeto e do grupo: seção 1.
+  - ii. Links dos repositórios: seção 2.
+  - iii. Integrantes e entidades: seção 3.
+  - iv. O que a aplicação faz: seção 4.
+  - v. Tecnologias: seção 5.
+  - vi. Camadas e pastas: seção 6 (a do frontend está no README do frontend).
+  - vii. Instalação, execução e acesso: seção 7.
+
