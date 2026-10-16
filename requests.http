@@ -1,0 +1,360 @@
+### WatchJobs: roteiro de testes da API (extensão REST Client do VS Code)
+### Execute na ordem, clicando em "Send Request" acima de cada bloco.
+### Rodando de novo, o signup da Ana responde 409 (e-mail já existe): siga a partir do signin.
+
+@baseUrl = http://localhost:8081
+
+### 1. Cadastro (201)
+POST {{baseUrl}}/signup
+Content-Type: application/json
+
+{
+  "firstName": "Ana",
+  "lastName": "Silva",
+  "birthDate": "1995-05-10",
+  "email": "ana@teste.com",
+  "password": "senha1234",
+  "confirmPassword": "senha1234"
+}
+
+### 2. Cadastro com e-mail repetido (409)
+POST {{baseUrl}}/signup
+Content-Type: application/json
+
+{
+  "firstName": "Ana",
+  "lastName": "Silva",
+  "birthDate": "1995-05-10",
+  "email": "ANA@teste.com",
+  "password": "senha1234",
+  "confirmPassword": "senha1234"
+}
+
+### 3. Cadastro inválido (400 com as mensagens de validação)
+POST {{baseUrl}}/signup
+Content-Type: application/json
+
+{
+  "firstName": "",
+  "lastName": "Silva",
+  "birthDate": "2999-01-01",
+  "email": "nao-e-email",
+  "password": "abc",
+  "confirmPassword": "abc"
+}
+
+### 4. Senha diferente da confirmação (400)
+POST {{baseUrl}}/signup
+Content-Type: application/json
+
+{
+  "firstName": "Ana",
+  "lastName": "Silva",
+  "birthDate": "1995-05-10",
+  "email": "outra@teste.com",
+  "password": "senha1234",
+  "confirmPassword": "senha9999"
+}
+
+### 5. Login (200 + token)
+# @name signin
+POST {{baseUrl}}/signin
+Content-Type: application/json
+
+{
+  "email": "ana@teste.com",
+  "password": "senha1234"
+}
+
+###
+@token = {{signin.response.body.token}}
+
+### 6. Login com senha errada (401)
+POST {{baseUrl}}/signin
+Content-Type: application/json
+
+{
+  "email": "ana@teste.com",
+  "password": "errada123"
+}
+
+### 7. Rota protegida sem token (401)
+GET {{baseUrl}}/me
+
+### 8. Rota protegida com token (200)
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
+
+### 9. Etapas da candidatura (200, 6 etapas)
+GET {{baseUrl}}/application-stages
+Authorization: Bearer {{token}}
+
+### ---------------- SavedJob ----------------
+
+### 10. Criar vaga (201)
+# @name createJob
+POST {{baseUrl}}/saved-jobs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "positionRole": "Desenvolvedor Kotlin",
+  "organizationName": "ACME Tecnologia",
+  "jobUrl": "https://acme.example/vagas/123",
+  "locationCity": "São Paulo",
+  "locationState": "SP",
+  "locationCountryCode": "BR",
+  "workMode": "HYBRID",
+  "experienceLevel": "MID",
+  "jobType": "CLT",
+  "salaryMin": 8000.00,
+  "salaryMax": 12000.00,
+  "salaryCurrency": "BRL",
+  "status": "SAVED",
+  "notes": "Indicação de um amigo"
+}
+
+###
+@jobId = {{createJob.response.body.id}}
+
+### 11. Criar outra vaga (201), usada no teste da cascata
+# @name createJob2
+POST {{baseUrl}}/saved-jobs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "positionRole": "Analista de Dados",
+  "organizationName": "Globex",
+  "workMode": "REMOTE",
+  "status": "PLANNING_TO_APPLY"
+}
+
+###
+@jobId2 = {{createJob2.response.body.id}}
+
+### 12. Vaga inválida (400 com as mensagens de validação)
+POST {{baseUrl}}/saved-jobs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "positionRole": "",
+  "organizationName": "ACME",
+  "locationCountryCode": "bra",
+  "salaryMin": -10,
+  "salaryCurrency": "real",
+  "status": "SAVED"
+}
+
+### 13. Salário mínimo maior que o máximo (400)
+POST {{baseUrl}}/saved-jobs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "positionRole": "Dev",
+  "organizationName": "ACME",
+  "salaryMin": 15000,
+  "salaryMax": 9000,
+  "status": "SAVED"
+}
+
+### 14. Listar vagas (200)
+GET {{baseUrl}}/saved-jobs
+Authorization: Bearer {{token}}
+
+### 15. Buscar vagas com LIKE em cargo ou empresa (200, só a do Kotlin)
+GET {{baseUrl}}/saved-jobs?q=kotl
+Authorization: Bearer {{token}}
+
+### 16. Vaga por id (200)
+GET {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{token}}
+
+### 17. Vaga inexistente (404)
+GET {{baseUrl}}/saved-jobs/999999
+Authorization: Bearer {{token}}
+
+### 18. Atualizar vaga (200)
+PUT {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "positionRole": "Desenvolvedor Kotlin Pleno",
+  "organizationName": "ACME Tecnologia",
+  "locationCity": "São Paulo",
+  "locationState": "SP",
+  "locationCountryCode": "BR",
+  "workMode": "REMOTE",
+  "experienceLevel": "MID",
+  "jobType": "CLT",
+  "salaryMin": 9000.00,
+  "salaryMax": 13000.00,
+  "salaryCurrency": "BRL",
+  "status": "PLANNING_TO_APPLY",
+  "notes": "Salário revisado"
+}
+
+### ---------------- Application ----------------
+
+### 19. Criar candidatura (201). A vaga passa para APPLIED
+# @name createApp
+POST {{baseUrl}}/applications
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "savedJobId": {{jobId}},
+  "stageId": 1,
+  "status": "APPLIED",
+  "applicationDate": "2026-10-15",
+  "interviewAt": "2026-10-20T14:30:00",
+  "notes": "Enviado pelo site da empresa"
+}
+
+###
+@appId = {{createApp.response.body.id}}
+
+### 20. Conferir que a vaga virou APPLIED (200)
+GET {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{token}}
+
+### 21. Segunda candidatura na mesma vaga (409)
+POST {{baseUrl}}/applications
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "savedJobId": {{jobId}},
+  "stageId": 1,
+  "status": "APPLIED",
+  "applicationDate": "2026-10-15"
+}
+
+### 22. Candidatura inválida (400 com as mensagens de validação)
+POST {{baseUrl}}/applications
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "savedJobId": 0,
+  "stageId": 1,
+  "status": "SAVED",
+  "applicationDate": "2999-01-01"
+}
+
+### 23. Listar candidaturas (200)
+GET {{baseUrl}}/applications
+Authorization: Bearer {{token}}
+
+### 24. Buscar candidaturas com LIKE em notas, feedback, cargo ou empresa (200)
+GET {{baseUrl}}/applications?q=acme
+Authorization: Bearer {{token}}
+
+### 25. Candidatura por id (200)
+GET {{baseUrl}}/applications/{{appId}}
+Authorization: Bearer {{token}}
+
+### 26. Atualizar candidatura para IN_PROCESS (200). A vaga acompanha
+PUT {{baseUrl}}/applications/{{appId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "savedJobId": {{jobId}},
+  "stageId": 2,
+  "status": "IN_PROCESS",
+  "applicationDate": "2026-10-15",
+  "interviewAt": "2026-10-22T10:00:00",
+  "notes": "Passei na triagem",
+  "feedback": "Retorno positivo do RH"
+}
+
+### 27. Conferir que a vaga virou IN_PROCESS (200)
+GET {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{token}}
+
+### 28. Voltar a vaga para SAVED com candidatura existente (409)
+PUT {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "positionRole": "Desenvolvedor Kotlin Pleno",
+  "organizationName": "ACME Tecnologia",
+  "status": "SAVED"
+}
+
+### 29. Excluir candidatura (204). A vaga volta para SAVED
+DELETE {{baseUrl}}/applications/{{appId}}
+Authorization: Bearer {{token}}
+
+### 30. Conferir que a vaga voltou para SAVED (200)
+GET {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{token}}
+
+### 31. Candidatura na segunda vaga (201)
+# @name createApp2
+POST {{baseUrl}}/applications
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "savedJobId": {{jobId2}},
+  "stageId": 1,
+  "status": "APPLIED",
+  "applicationDate": "2026-10-16"
+}
+
+###
+@appId2 = {{createApp2.response.body.id}}
+
+### 32. Excluir a segunda vaga (204). A candidatura some junto (cascata)
+DELETE {{baseUrl}}/saved-jobs/{{jobId2}}
+Authorization: Bearer {{token}}
+
+### 33. Conferir que a candidatura sumiu (404)
+GET {{baseUrl}}/applications/{{appId2}}
+Authorization: Bearer {{token}}
+
+### ---------------- Isolamento entre usuários ----------------
+
+### 34. Cadastrar o segundo usuário (201)
+POST {{baseUrl}}/signup
+Content-Type: application/json
+
+{
+  "firstName": "Bruno",
+  "lastName": "Souza",
+  "birthDate": "1990-01-20",
+  "email": "bruno@teste.com",
+  "password": "senha1234",
+  "confirmPassword": "senha1234"
+}
+
+### 35. Login do segundo usuário (200)
+# @name signinBruno
+POST {{baseUrl}}/signin
+Content-Type: application/json
+
+{
+  "email": "bruno@teste.com",
+  "password": "senha1234"
+}
+
+###
+@tokenBruno = {{signinBruno.response.body.token}}
+
+### 36. O Bruno não vê as vagas da Ana (200, lista vazia)
+GET {{baseUrl}}/saved-jobs
+Authorization: Bearer {{tokenBruno}}
+
+### 37. O Bruno tenta abrir a vaga da Ana (404, e não 403)
+GET {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{tokenBruno}}
+
+### 38. O Bruno tenta excluir a vaga da Ana (404)
+DELETE {{baseUrl}}/saved-jobs/{{jobId}}
+Authorization: Bearer {{tokenBruno}}
