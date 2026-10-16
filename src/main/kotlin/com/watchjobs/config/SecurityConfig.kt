@@ -69,7 +69,7 @@ class SecurityConfig(
             .cors { }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                it.requestMatchers("/signin", "/signup").permitAll()
+                it.requestMatchers(HttpMethod.POST, "/signin", "/signup").permitAll()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling {

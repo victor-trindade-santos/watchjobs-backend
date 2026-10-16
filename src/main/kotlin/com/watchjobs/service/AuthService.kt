@@ -16,13 +16,16 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDateTime
+import com.watchjobs.mapper.UserMapper
+
 
 @Service
 class AuthService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
     private val authenticationManager: AuthenticationManager,
-    private val jwtUtil: JwtUtil
+    private val jwtUtil: JwtUtil,
+    private val userMapper: UserMapper
 ) {
     @Transactional
     fun signup(request: SignupRequest): UserResponse {
@@ -34,17 +37,11 @@ class AuthService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "A senha e a confirmação de senha não coincidem")
         }
         val user = userRepository.save(
-            User(
-                firstName = request.firstName.trim(),
-                lastName = request.lastName.trim(),
-                birthDate = request.birthDate,
-                email = email,
-                password = requireNotNull(passwordEncoder.encode(request.password)){
-                    "Erro ao codificar a senha"
-                }
-            )
+            userMapper.toEntity(request, requireNotNull(passwordEncoder.encode(request.password)){
+                "Não foi possível gerar o hash da senha"
+            })
         )
-        return toUserResponse(user)
+        return userMapper.toResponse(user)
 }    
 
 @Transactional
@@ -62,17 +59,10 @@ class AuthService(
         return AuthResponse(
             token = jwtUtil.generateToken(user),
             expiresAt = LocalDateTime.now().plusMinutes(jwtUtil.expirationMinutes),
-            user = toUserResponse(user)
+            user = userMapper.toResponse(user)
         )    
     }
 
-    fun toUserResponse(user: User): UserResponse {
-        return UserResponse(
-            id = user.id ?: error("Usuário sem id"),
-            firstName = user.firstName,
-            lastName = user.lastName,
-            email = user.email,
-            birthDate = user.birthDate
-        )
-    }
+    fun currentUser(user: User): UserResponse = userMapper.toResponse(user)
+    
 }

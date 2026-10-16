@@ -13,21 +13,22 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 import com.watchjobs.security.AppUserDetails
+import jakarta.validation.Valid
 
 @RestController
 class AuthController(
     private val authService: AuthService
 ) {
     @PostMapping("/signup")
-    fun signup(@RequestBody request: SignupRequest): ResponseEntity<UserResponse> =
+    fun signup(@Valid @RequestBody request: SignupRequest): ResponseEntity<UserResponse> =
         ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(request))
     
     @PostMapping("/signin")
-    fun signin(@RequestBody request: SigninRequest): AuthResponse = authService.signin(request)
+    fun signin(@Valid @RequestBody  request: SigninRequest): AuthResponse = authService.signin(request)
     
     @GetMapping("/me")
     fun me(authentication: Authentication): UserResponse {
         val principal = authentication.principal as AppUserDetails
-        return authService.toUserResponse(principal.user)
+        return authService.currentUser(principal.user)
     }
 }   
