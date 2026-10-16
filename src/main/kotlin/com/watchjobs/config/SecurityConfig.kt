@@ -21,6 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
+import jakarta.servlet.DispatcherType
 
 @Configuration
 class SecurityConfig(
@@ -68,6 +69,7 @@ class SecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .cors { }
             .authorizeHttpRequests {
+                it.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/signin", "/signup").permitAll()
                 it.anyRequest().authenticated()
