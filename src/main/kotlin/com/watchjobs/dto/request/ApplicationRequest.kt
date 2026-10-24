@@ -6,6 +6,7 @@ import jakarta.validation.constraints.PastOrPresent
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.Size
+import jakarta.validation.constraints.AssertTrue
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -37,5 +38,9 @@ data class ApplicationRequest(
     val notes: String? = null,
 
     @field:Size(max = 4000, message = "Feedback deve ter no máximo 4000 caracteres")
-    val feedback: String? = null
-)
+    val feedback: String? = null,
+){
+    @AssertTrue(message = "Data de término não pode ser anterior à data da candidatura")
+    fun isEndDateOnOrAfterApplicationDate(): Boolean =
+        endDate == null || !endDate.isBefore(applicationDate)
+}
