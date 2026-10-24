@@ -1,18 +1,23 @@
 package com.watchjobs.entity.enums
 
+import com.fasterxml.jackson.annotation.JsonAlias
+
 enum class WorkMode {
     REMOTE,
     HYBRID,
-    ONSITE
+    @JsonAlias("ONSITE")
+    ON_SITE
 }
 
 
 enum class ExperienceLevel {
     INTERN,
+    TRAINEE,
     JUNIOR,
     MID,
     SENIOR,
-    LEAD
+    SPECIALIST,
+    LEAD,
 }
 
 enum class JobType {
