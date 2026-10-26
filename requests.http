@@ -484,3 +484,38 @@ Content-Type: application/json
 ### 52. A conta nao existe mais (401)
 GET {{baseUrl}}/me
 Authorization: Bearer {{tokenNovo}}
+
+### ---------------- Corpus: Buscar vagas (F2) ----------------
+### Rode antes o motor (README 7.3) para haver vagas. Usa o login do Bruno (passo 35).
+
+### 53. Buscar vagas no corpus (200 com { items, page, size, total })
+# @name searchJobs
+GET {{baseUrl}}/jobs/search?q=engineer&size=5
+Authorization: Bearer {{tokenBruno}}
+
+###
+@corpusJobId = {{searchJobs.response.body.items[0].id}}
+
+### 54. Filtros: remoto e sênior (200)
+GET {{baseUrl}}/jobs/search?workMode=REMOTE&level=SENIOR&location=brazil
+Authorization: Bearer {{tokenBruno}}
+
+### 55. Filtro inválido (400 INVALID_PARAMETER)
+GET {{baseUrl}}/jobs/search?workMode=MARTE
+Authorization: Bearer {{tokenBruno}}
+
+### 56. Detalhe da vaga com skills (200)
+GET {{baseUrl}}/jobs/{{corpusJobId}}
+Authorization: Bearer {{tokenBruno}}
+
+### 57. Salvar a vaga do corpus (201): a cópia em /saved-jobs não expira
+POST {{baseUrl}}/jobs/{{corpusJobId}}/save
+Authorization: Bearer {{tokenBruno}}
+
+### 58. Salvar de novo (409 "Você já salvou esta vaga")
+POST {{baseUrl}}/jobs/{{corpusJobId}}/save
+Authorization: Bearer {{tokenBruno}}
+
+### 59. A vaga salva aparece na lista (200)
+GET {{baseUrl}}/saved-jobs
+Authorization: Bearer {{tokenBruno}}

@@ -33,9 +33,9 @@ dependencies {
 	implementation("io.jsonwebtoken:jjwt-api:0.13.0")
 	implementation("io.jsonwebtoken:jjwt-impl:0.13.0")
 	implementation("io.jsonwebtoken:jjwt-jackson:0.13.0")
+	implementation("org.jsoup:jsoup:1.21.2")
 	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 	runtimeOnly("org.postgresql:postgresql")
-   runtimeOnly("com.h2database:h2")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-security-test")
@@ -59,11 +59,4 @@ allOpen {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
-}
-
-// Sem Docker e sem instalar banco, com o H2 em memória: .\gradlew.bat bootRun -Ph2
-tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
-   if (project.hasProperty("h2")) {
-       systemProperty("spring.profiles.active", "h2")
-   }
 }

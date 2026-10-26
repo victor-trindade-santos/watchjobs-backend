@@ -1,0 +1,38 @@
+{
+  "results": [
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4901234567",
+      "title": "Desenvolvedor <strong>Backend</strong> Pleno",
+      "description": "Buscamos pessoa desenvolvedora com Java, Spring e SQL para atuar em APIs REST...",
+      "redirect_url": "https://www.adzuna.com.br/land/ad/4901234567?se=abc",
+      "created": "2026-10-20T13:45:00Z",
+      "company": { "display_name": "Acme Tecnologia Ltda." },
+      "location": { "display_name": "São Paulo, São Paulo", "area": ["Brasil", "São Paulo", "São Paulo"] },
+      "salary_min": 9000,
+      "salary_max": 12000,
+      "salary_is_predicted": "0",
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "category": { "label": "Empregos em TI", "tag": "it-jobs" }
+    },
+    {
+      "id": 4901234568,
+      "title": "Back-end Developer (Node.js) - Remoto",
+      "description": "Node.js, TypeScript, PostgreSQL. Home office.",
+      "redirect_url": "https://www.adzuna.com.br/land/ad/4901234568?se=abc",
+      "created": "2026-10-21T09:00:00Z",
+      "company": { "display_name": "ACME TECNOLOGIA" },
+      "location": { "display_name": "Brasil", "area": ["Brasil"] }
+    },
+    {
+      "id": "4901234569",
+      "title": "",
+      "description": "Sem título: deve ser rejeitada.",
+      "redirect_url": "https://www.adzuna.com.br/land/ad/4901234569",
+      "company": { "display_name": "Outra" }
+    }
+  ],
+  "count": 3,
+  "mean": 10500
+}

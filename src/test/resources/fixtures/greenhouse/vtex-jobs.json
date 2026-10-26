@@ -1,0 +1,54 @@
+{
+  "jobs": [
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/vtex/jobs/6100504004",
+      "data_compliance": [],
+      "internal_job_id": 5100100001,
+      "location": { "name": "São Paulo, Brazil" },
+      "metadata": null,
+      "id": 6100504004,
+      "updated_at": "2026-10-20T10:15:00-04:00",
+      "requisition_id": "ENG-101",
+      "title": "Senior Backend Engineer (Java)",
+      "company_name": "VTEX",
+      "first_published": "2026-10-10T09:00:00-04:00",
+      "content": "&lt;p&gt;We build commerce at scale.&lt;/p&gt;&lt;h3&gt;Requirements&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Java, Spring Boot and PostgreSQL&lt;/li&gt;&lt;li&gt;Experience with Kafka&lt;/li&gt;&lt;/ul&gt;&lt;h3&gt;Nice to have&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Kubernetes&lt;/li&gt;&lt;/ul&gt;",
+      "departments": [{ "id": 1, "name": "Engineering" }],
+      "offices": [{ "id": 2, "name": "São Paulo" }]
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/vtex/jobs/6100504005",
+      "location": { "name": "Remote - Brazil" },
+      "id": 6100504005,
+      "updated_at": "2026-10-21T08:00:00-04:00",
+      "title": "Desenvolvedor(a) Front-end Pleno",
+      "company_name": "VTEX",
+      "first_published": "2026-10-12T09:00:00-04:00",
+      "content": "&lt;p&gt;Vaga 100% remota. Stack: React, TypeScript e Next.js.&lt;/p&gt;",
+      "departments": [{ "id": 1, "name": "Engineering" }]
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/vtex/jobs/6100504006",
+      "location": { "name": "Rio de Janeiro - RJ" },
+      "id": 6100504006,
+      "updated_at": "2026-10-22T08:00:00-04:00",
+      "title": "Engenheiro(a) de Dados Sênior",
+      "company_name": "VTEX",
+      "first_published": "2026-10-15T09:00:00-04:00",
+      "content": "&lt;p&gt;Modelo híbrido. Python, Spark, Airflow e dbt.&lt;/p&gt;",
+      "departments": [{ "id": 3, "name": "Data" }]
+    },
+    {
+      "absolute_url": "https://job-boards.greenhouse.io/vtex/jobs/6100504007",
+      "location": { "name": "Florianópolis" },
+      "id": 6100504007,
+      "updated_at": "2026-10-23T08:00:00-04:00",
+      "title": "Estágio em Desenvolvimento Mobile",
+      "company_name": "VTEX",
+      "first_published": "2026-10-18T09:00:00-04:00",
+      "content": "&lt;p&gt;Flutter e Dart. Diferencial: Kotlin.&lt;/p&gt;",
+      "departments": []
+    }
+  ],
+  "meta": { "total": 4 }
+}

@@ -13,8 +13,8 @@
 - [7. Instalação, execução e acesso](#7-instalação-execução-e-acesso)
    - [7.0 Pré-requisitos](#70-pré-requisitos)
    - [7.1 Com Docker (PostgreSQL, forma principal)](#71-com-docker-postgresql-forma-principal)
-   - [7.2 Sem Docker e sem instalar nenhum banco (H2)](#72-sem-docker-e-sem-instalar-nenhum-banco-h2)
-   - [7.3 Com um PostgreSQL já instalado (sem Docker)](#73-com-um-postgresql-já-instalado-sem-docker)
+   - [7.2 Com um PostgreSQL já instalado (sem Docker)](#72-com-um-postgresql-já-instalado-sem-docker)
+   - [7.3 Motor de ingestão (perfil ingestion)](#73-motor-de-ingestão-perfil-ingestion)
    - [Acesso e testes](#acesso-e-testes)
 - [Checklist dos requisitos da prova](#checklist-dos-requisitos-da-prova)
    - [Parte 1: backend](#parte-1-backend)
@@ -70,7 +70,7 @@ São duas etapas diferentes da busca por emprego, por isso são duas entidades.
 
 ## 5. Tecnologias
 
-Kotlin 2.3, Spring Boot 4.1 (Web MVC, Data JPA, Validation, Security), JJWT 0.13, PostgreSQL 17, Flyway, Docker Compose e Gradle (Kotlin DSL), com Java 21. Para rodar sem Docker: H2, um banco embutido em memória.
+Kotlin 2.3, Spring Boot 4.1 (Web MVC, Data JPA, JDBC, Validation, Security), JJWT 0.13, jsoup, PostgreSQL 17, Flyway, Docker Compose e Gradle (Kotlin DSL), com Java 21. O banco é sempre PostgreSQL: o schema `discovery` usa partições e PL/pgSQL, que bancos embutidos não suportam (a versão com H2 ficou na tag `prova-2026-10-16`).
 
 ## 6. Camadas e pastas
 
@@ -86,7 +86,11 @@ Código em `src/main/kotlin/com/watchjobs/`:
 | Domínio | `entity/`, `enums/` | Entidades JPA e enums |
 | Segurança | `security/`, `config/` | `JwtUtil`, `JwtAuthenticationFilter`, `AppUserDetails`, `AppUserDetailsService`, `SecurityConfig` |
 | Erros | `exception/` | Exceções e `GlobalExceptionHandler` (formato `{ code, message, details }`) |
-| Banco | `src/main/resources/db/migration/`, `src/main/resources/db/h2/` | `V1__core_schema.sql` e `V2__prova_adjustments.sql` (Flyway, PostgreSQL). `schema.sql` e `application-h2.properties` para o perfil sem Docker |
+| Banco | `src/main/resources/db/migration/` | Migrations do Flyway: V1 a V4 (`core`), V5 a V8 (`discovery`, fontes, catálogos e regras) e as repetíveis `R__seed_*.sql` (skills, regras de classificação, boards e segmentos) |
+| Fontes | `sources/` | Entidades `JobSource` e `SourceCompany` e os enums `SourceType` e `AccessMethod` |
+| Classificação | `classification/`, `catalog/` | `JobClassifier` por regras do banco (com versão), normalização de textos e de nomes de empresa |
+| Ingestão | `ingestion/` | Conectores (Greenhouse, Adzuna), normalizadores, extrator de skills, acesso ao corpus com `JdbcClient`, pipeline e `IngestionRunner` |
+| Corpus | `jobs/` | Busca, detalhe e "salvar do corpus" (`/jobs/*`) |
 
 ### Rotas
 
@@ -107,6 +111,9 @@ Código em `src/main/kotlin/com/watchjobs/`:
 | GET, PUT, DELETE | `/applications/{id}` | Token | 200 / 200 / 204, ou 404 |
 | POST | `/applications` | Token | 201 / 400 / 404 / 409 |
 | GET | `/application-stages` | Token | 200 |
+| GET | `/jobs/search?q=&location=&workMode=&level=&jobType=&page=&size=` | Token | 200 com `{ items, page, size, total }` (só vagas ativas e não vencidas; `size` até 50) |
+| GET | `/jobs/{id}` | Token | 200 com a vaga, as skills e a descrição (só se a fonte permite guardar) / 404 |
+| POST | `/jobs/{id}/save` | Token | 201 com a vaga salva / 404 / 409 se já salva |
 
 Rotas protegidas exigem o cabeçalho `Authorization: Bearer <token>`. O access token vale 15 minutos e o refresh vale 30 dias. A renovação revoga o refresh antigo e entrega um substituto da mesma família. O logout revoga apenas o refresh informado, pertencente ao usuário autenticado; o access já emitido continua válido até expirar, salvo se a senha for redefinida.
 
@@ -124,7 +131,7 @@ A documentação interativa fica em **http://localhost:8081/swagger-ui.html** (s
    - Pelo terminal: `code --install-extension humao.rest-client`.
 
    Depois, abra o `requests.http` e clique em **Send Request**, que aparece acima de cada requisição. A resposta abre ao lado.
-3. **Docker Desktop**, só para a forma 7.1. As formas 7.2 e 7.3 não usam Docker.
+3. **Docker Desktop**, só para a forma 7.1. A forma 7.2 usa um PostgreSQL 17 já instalado.
 4. **Clonar o repositório:**
 
 ```powershell
@@ -132,7 +139,7 @@ git clone https://github.com/victor-trindade-santos/watchjobs-backend.git
 cd watchjobs-backend
 ```
 
-Depois, escolha **uma** das três formas abaixo para subir o banco. Nas três, a API fica em **http://localhost:8081**.
+Depois, escolha **uma** das duas formas abaixo para subir o banco. Nas duas, a API fica em **http://localhost:8081**.
 
 ### 7.1 Com Docker (PostgreSQL, forma principal)
 
@@ -142,26 +149,9 @@ Com o Docker Desktop aberto:
 .\gradlew.bat bootRun
 ```
 
-O `bootRun` sobe o PostgreSQL do `compose.yaml` sozinho (Docker Compose Support), e o Flyway aplica as migrations V1 a V4. Espere aparecer `Tomcat started on port 8081`.
+O `bootRun` sobe o PostgreSQL do `compose.yaml` sozinho (Docker Compose Support), e o Flyway aplica as migrations V1 a V8 e as repetíveis `R__`. Espere aparecer `Tomcat started on port 8081`.
 
-### 7.2 Sem Docker e sem instalar nenhum banco (H2)
-
-O perfil H2 não suporta a autenticação renovável da V4: seu schema está congelado, sem as tabelas e colunas novas. Para login, refresh, logout e os testes desta fase, use PostgreSQL conforme 7.1 ou 7.3.
-
-Se o computador não tiver Docker, este é o caminho mais simples. **Não precisa instalar nada além do Java**: o H2 é um banco embutido que o Gradle baixa como qualquer outra dependência.
-
-```powershell
-.\gradlew.bat bootRun -Ph2
-```
-
-O `-Ph2` ativa o perfil [`application-h2.properties`](src/main/resources/application-h2.properties):
-
-- desliga o Docker Compose e o Flyway;
-- cria as tabelas pelo [`db/h2/schema.sql`](src/main/resources/db/h2/schema.sql), já com as 6 etapas de candidatura.
-
-O banco fica **em memória**, então os dados somem quando a aplicação para. Esta configuração é legada e não valida as funcionalidades da V4.
-
-### 7.3 Com um PostgreSQL já instalado (sem Docker)
+### 7.2 Com um PostgreSQL já instalado (sem Docker)
 
 Crie o banco `watchjobs`, informe a conexão e rode:
 
@@ -172,7 +162,53 @@ $env:DB_PASSWORD = "watchjobs"
 .\gradlew.bat bootRun --args='--spring.docker.compose.enabled=false'
 ```
 
-O Flyway cria o schema `core` e aplica as migrations na primeira subida.Dá para testar sem a extensão REST Client pelo Swagger, em **http://localhost:8081/swagger-ui.html**. O arquivo [`requests.http`](requests.http) continua sendo o roteiro de cadastro, login, CRUD, renovação, recuperação de senha, exclusão de conta
+O Flyway cria os schemas `core` e `discovery` e aplica as migrations na primeira subida. Dá para testar sem a extensão REST Client pelo Swagger, em **http://localhost:8081/swagger-ui.html**.
+
+### 7.3 Motor de ingestão (perfil ingestion)
+
+O motor é o mesmo jar rodando como programa: coleta uma rodada das fontes ativas, grava no schema `discovery` e termina. Ele nunca roda dentro da API.
+
+1. **Ative as fontes** depois de ler os termos de uso: em [`R__seed_sources.sql`](src/main/resources/db/migration/R__seed_sources.sql), preencha o link e a data dos termos e descomente os `UPDATE` (o banco recusa ativar uma fonte sem `terms_reviewed_at`).
+2. **Adzuna:** crie a conta em https://developer.adzuna.com, anote a cota diária em `rate_limit_per_day` e informe as credenciais (nunca no banco nem no Git). Copie `.env.example` para `.env` (já ignorado pelo Git) e preencha, ou use variáveis de ambiente:
+
+```powershell
+Copy-Item .env.example .env   # depois edite o .env
+# ou, só nesta sessão do terminal:
+$env:ADZUNA_APP_ID = "..."
+$env:ADZUNA_APP_KEY = "..."
+```
+
+3. **Rode uma rodada:**
+
+```powershell
+.\gradlew.bat bootRun --args="--spring.profiles.active=ingestion"
+# só uma fonte, ou uma empresa, ignorando o intervalo de coleta:
+.\gradlew.bat bootRun --args="--spring.profiles.active=ingestion --source=GREENHOUSE --company=vtex --force"
+```
+
+O log termina com o resumo da rodada (lidas, novas, alteradas, fechadas) e a cobertura das regras (porcentagem de vagas sem área e sem nível). O código de saída só é diferente de zero se **todas** as fontes falharem. Outros argumentos: `--no-maintenance` (pula a limpeza dos 30 dias).
+
+**Consultas úteis (runbook):**
+
+```sql
+-- Cobertura brasileira por fonte (F2-14)
+SELECT s.code, count(*) FILTER (WHERE j.country_code = 'BR') AS brasil,
+       count(*) FILTER (WHERE j.work_mode = 'REMOTE' AND j.country_code IS DISTINCT FROM 'BR') AS remotas_fora,
+       count(*) AS total
+  FROM discovery.discovered_job j JOIN core.job_source s ON s.job_source_id = j.source_id
+ WHERE j.corpus_status = 'ACTIVE' AND j.expires_at > now()
+ GROUP BY s.code;
+
+-- Cobertura das regras (gatilho da Laya, 3.13)
+SELECT round(100.0 * count(*) FILTER (WHERE role_family IS NULL) / greatest(count(*), 1), 1) AS pct_sem_area,
+       round(100.0 * count(*) FILTER (WHERE experience_level IS NULL) / greatest(count(*), 1), 1) AS pct_sem_nivel
+  FROM discovery.discovered_job WHERE corpus_status = 'ACTIVE' AND expires_at > now();
+
+-- Últimas coletas
+SELECT ingestion_run_id, source_id, source_company_id, segment_id, status, jobs_fetched, jobs_new,
+       jobs_updated, jobs_deduplicated, jobs_closed, error_message
+  FROM discovery.ingestion_run ORDER BY ingestion_run_id DESC LIMIT 20;
+```
 
 ### Acesso e testes
 
@@ -192,9 +228,20 @@ docker compose up -d postgres
 .\gradlew.bat test --rerun-tasks
 ```
 
-Use um banco de desenvolvimento/teste, nunca produção. Os testes usam `DB_URL`, `DB_USERNAME` e `DB_PASSWORD` ou a conexão local padrão; não use o perfil H2. O Flyway aplica as migrations e o Hibernate valida os mapeamentos. Os testes de sessão criam usuários exclusivos e removem apenas esses usuários ao terminar; o teste de códigos usa rollback. Não é necessário executar `docker compose down -v`.
+Use um banco de desenvolvimento/teste, nunca produção. Os testes usam `DB_URL`, `DB_USERNAME` e `DB_PASSWORD` ou a conexão local padrão. O Flyway aplica as migrations e o Hibernate valida os mapeamentos. Os testes de sessão criam usuários exclusivos e removem apenas esses usuários ao terminar; o teste de códigos usa rollback. Não é necessário executar `docker compose down -v`.
 
 São cobertos hash persistido, validade dos tokens, rotação, reuso recusado, concorrência, expiração, logout e isolamento entre donos. Os resultados ficam em `build/reports/tests/test/index.html` e `build/test-results/test/`.
+
+**Testes da ingestão e do corpus (F2):**
+
+```powershell
+# Sem banco e sem internet: conectores contra respostas gravadas, normalizadores, skills e regras
+.\gradlew.bat test --tests "com.watchjobs.ingestion.ConnectorTest" --tests "com.watchjobs.ingestion.NormalizersTest" --tests "com.watchjobs.ingestion.JobNormalizerTest"
+# Com PostgreSQL: migrations V5 a V8, regras do banco, pipeline, prazo de 30 dias e rotas /jobs
+.\gradlew.bat test --tests "com.watchjobs.ingestion.*PostgresTest" --tests "com.watchjobs.controller.JobControllerPostgresTest"
+```
+
+As respostas gravadas ficam em `src/test/resources/fixtures/` (Greenhouse e Adzuna). Para atualizá-las com respostas reais, salve a saída de `https://boards-api.greenhouse.io/v1/boards/vtex/jobs?content=true` no mesmo formato (os testes conferem cargos e skills desse arquivo).
 
 ## Checklist dos requisitos da prova
 
@@ -257,8 +304,7 @@ Como este repositório atende à **Parte 1 (backend, 8,0 pontos)** e aos critér
 - [x] **3b e 3c. Autoria no histórico Git:** o histórico tem commits pequenos por etapa, com o item da prova na mensagem, feitos pelo integrante.
 - [x] **3d. Compila e roda:**
   - `.\gradlew.bat bootRun` sobe a API com o PostgreSQL e as migrations.
-  - Sem Docker, `.\gradlew.bat bootRun -Ph2` sobe a API com o H2 embutido, sem instalar nenhum banco (seção 7.2).
-  - O [`requests.http`](requests.http) exercita as 38 requisições da demonstração, incluindo os casos de erro.
+  - O [`requests.http`](requests.http) exercita as requisições da demonstração, incluindo os casos de erro.
   - `.\gradlew.bat test --tests "com.watchjobs.controller.*"` roda os testes automatizados.
 - [x] **3e. README com os 7 itens:**
   - i. Nome do projeto e do grupo: seção 1.
