@@ -93,8 +93,13 @@ Código em `src/main/kotlin/com/watchjobs/`:
 | Método | Caminho | Auth | Resposta |
 |---|---|---|---|
 | POST | `/signup` | Pública | 201 / 400 / 409 |
-| POST | `/signin` | Pública | 200 com `{ token, tokenType, expiresAt, user }` / 401 |
+| POST | `/signin` | Pública | 200 com `{ token, refreshToken, tokenType, expiresAt, user }` / 401 |
+| POST | `/auth/refresh` | Pública | 200 com novo par de tokens / 400 / 401 |
+| POST | `/auth/logout` | Token | 204 / 400 / 401 |
+| POST | `/password/forgot` | Pública | 202, mesmo se o e-mail não existir |
+| POST | `/password/reset` | Pública | 204 / 400 |
 | GET | `/me` | Token | 200 |
+| DELETE | `/me` | Token + senha no corpo | 204 / 401 |
 | GET | `/saved-jobs?q=` | Token | 200 (com `q`, busca por cargo ou empresa) |
 | GET, PUT, DELETE | `/saved-jobs/{id}` | Token | 200 / 200 / 204, ou 404 |
 | POST | `/saved-jobs` | Token | 201 / 400 |
@@ -103,7 +108,11 @@ Código em `src/main/kotlin/com/watchjobs/`:
 | POST | `/applications` | Token | 201 / 400 / 404 / 409 |
 | GET | `/application-stages` | Token | 200 |
 
-Rotas protegidas exigem o cabeçalho `Authorization: Bearer <token>`. O token vale 2 horas.
+Rotas protegidas exigem o cabeçalho `Authorization: Bearer <token>`. O access token vale 15 minutos e o refresh vale 30 dias. A renovação revoga o refresh antigo e entrega um substituto da mesma família. O logout revoga apenas o refresh informado, pertencente ao usuário autenticado; o access já emitido continua válido até expirar, salvo se a senha for redefinida.
+
+`POST /password/forgot` responde sempre **202**. Se a conta existir e ainda houver cota (3 códigos por e-mail por hora), o código de 6 dígitos chega por e-mail e vale 15 minutos. `POST /password/reset` troca a senha, grava `password_changed_at` e revoga todos os refresh tokens; access tokens emitidos antes da troca passam a receber 401. `DELETE /me` exige `{ "password": "..." }` e apaga o usuário com as linhas que dependem dele.
+
+A documentação interativa fica em **http://localhost:8081/swagger-ui.html** (spec em `/v3/api-docs`). No botão **Authorize**, cole só o access token. O Mailpit (caixa local) fica em **http://localhost:8025**; o SMTP é `localhost:1025`.
 
 ## 7. Instalação, execução e acesso
 
@@ -133,9 +142,11 @@ Com o Docker Desktop aberto:
 .\gradlew.bat bootRun
 ```
 
-O `bootRun` sobe o PostgreSQL do `compose.yaml` sozinho (Docker Compose Support), e o Flyway aplica a V1 e a V2. Espere aparecer `Tomcat started on port 8081`.
+O `bootRun` sobe o PostgreSQL do `compose.yaml` sozinho (Docker Compose Support), e o Flyway aplica as migrations V1 a V4. Espere aparecer `Tomcat started on port 8081`.
 
 ### 7.2 Sem Docker e sem instalar nenhum banco (H2)
+
+O perfil H2 não suporta a autenticação renovável da V4: seu schema está congelado, sem as tabelas e colunas novas. Para login, refresh, logout e os testes desta fase, use PostgreSQL conforme 7.1 ou 7.3.
 
 Se o computador não tiver Docker, este é o caminho mais simples. **Não precisa instalar nada além do Java**: o H2 é um banco embutido que o Gradle baixa como qualquer outra dependência.
 
@@ -148,7 +159,7 @@ O `-Ph2` ativa o perfil [`application-h2.properties`](src/main/resources/applica
 - desliga o Docker Compose e o Flyway;
 - cria as tabelas pelo [`db/h2/schema.sql`](src/main/resources/db/h2/schema.sql), já com as 6 etapas de candidatura.
 
-Tudo funciona igual: as rotas, a segurança, as validações e as regras. A única diferença é que o banco fica **em memória**, então os dados somem quando a aplicação para.
+O banco fica **em memória**, então os dados somem quando a aplicação para. Esta configuração é legada e não valida as funcionalidades da V4.
 
 ### 7.3 Com um PostgreSQL já instalado (sem Docker)
 
@@ -161,17 +172,29 @@ $env:DB_PASSWORD = "watchjobs"
 .\gradlew.bat bootRun --args='--spring.docker.compose.enabled=false'
 ```
 
-O Flyway cria o schema `core` e aplica as migrations na primeira subida.
+O Flyway cria o schema `core` e aplica as migrations na primeira subida.Dá para testar sem a extensão REST Client pelo Swagger, em **http://localhost:8081/swagger-ui.html**. O arquivo [`requests.http`](requests.http) continua sendo o roteiro de cadastro, login, CRUD, renovação, recuperação de senha, exclusão de conta
 
 ### Acesso e testes
 
-**Primeiro acesso:** crie um usuário com `POST /signup` e faça login com `POST /signin`. O arquivo [`requests.http`](requests.http) (abra com a extensão REST Client, seção 7.0) tem o roteiro completo, que funciona com qualquer uma das três formas: cadastro, login, CRUD das duas entidades, buscas, regras de status e casos de erro.
+**Primeiro acesso:** com PostgreSQL, crie um usuário com `POST /signup` e faça login com `POST /signin`. O arquivo [`requests.http`](requests.http) (abra com a extensão REST Client, seção 7.0) tem o roteiro de cadastro, login, CRUD das duas entidades, buscas, regras de status, renovação de sessão, logout e casos de erro.
 
-**Testes automatizados** (não precisam de banco):
+**Testes da camada web** (não precisam de banco):
 
 ```powershell
-.\gradlew.bat test --tests "com.watchjobs.controller.*"
+.\gradlew.bat test --tests "com.watchjobs.controller.AuthControllerWebTest"
 ```
+
+**Compilação e testes com PostgreSQL** (Docker Desktop aberto):
+
+```powershell
+docker compose up -d postgres
+.\gradlew.bat compileKotlin compileTestKotlin
+.\gradlew.bat test --rerun-tasks
+```
+
+Use um banco de desenvolvimento/teste, nunca produção. Os testes usam `DB_URL`, `DB_USERNAME` e `DB_PASSWORD` ou a conexão local padrão; não use o perfil H2. O Flyway aplica as migrations e o Hibernate valida os mapeamentos. Os testes de sessão criam usuários exclusivos e removem apenas esses usuários ao terminar; o teste de códigos usa rollback. Não é necessário executar `docker compose down -v`.
+
+São cobertos hash persistido, validade dos tokens, rotação, reuso recusado, concorrência, expiração, logout e isolamento entre donos. Os resultados ficam em `build/reports/tests/test/index.html` e `build/test-results/test/`.
 
 ## Checklist dos requisitos da prova
 

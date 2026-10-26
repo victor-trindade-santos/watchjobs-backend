@@ -40,7 +40,7 @@ class GlobalExceptionHandler {
     @ExceptionHandler(BadCredentialsException::class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     fun handleBadCredentials(ex: BadCredentialsException) =
-        ErrorResponse("INVALID_CREDENTIALS", "E-mail ou senha inválidos", null)
+        ErrorResponse("INVALID_CREDENTIALS", ex.message ?: "Credenciais inválidas", null)
 
     @ExceptionHandler(NotFoundException::class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

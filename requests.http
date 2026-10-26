@@ -1,6 +1,7 @@
-### WatchJobs: roteiro de testes da API (extensão REST Client do VS Code)
-### Execute na ordem, clicando em "Send Request" acima de cada bloco.
-### Rodando de novo, o signup da Ana responde 409 (e-mail já existe): siga a partir do signin.
+### WatchJobs: roteiro de testes da API
+### Sem a extensão REST Client, use o Swagger: http://localhost:8081/swagger-ui.html
+### O código de redefinição aparece no Mailpit: http://localhost:8025
+### Execute na ordem. Rodando de novo, o signup da Ana responde 409: siga a partir do signin.
 
 @baseUrl = http://localhost:8081
 
@@ -358,3 +359,128 @@ Authorization: Bearer {{tokenBruno}}
 ### 38. O Bruno tenta excluir a vaga da Ana (404)
 DELETE {{baseUrl}}/saved-jobs/{{jobId}}
 Authorization: Bearer {{tokenBruno}}
+
+### ---------------- Renovacao e logout (PostgreSQL) ----------------
+
+### 39. Renovar a sessao da Ana sem access token (200 com novo par)
+# @name refreshAna
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{signin.response.body.refreshToken}}"
+}
+
+### 40. Reutilizar o refresh antigo (401)
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{signin.response.body.refreshToken}}"
+}
+
+### 41. Usar o access renovado (200)
+GET {{baseUrl}}/me
+Authorization: Bearer {{refreshAna.response.body.token}}
+
+### 42. Logout sem access (401, sem revogar)
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshAna.response.body.refreshToken}}"
+}
+
+### 43. Bruno tenta revogar a sessao da Ana (401, sem revogar)
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{tokenBruno}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshAna.response.body.refreshToken}}"
+}
+
+### 44. Logout da sessao renovada (204)
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{refreshAna.response.body.token}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshAna.response.body.refreshToken}}"
+}
+
+### 45. Renovar depois do logout (401)
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshAna.response.body.refreshToken}}"
+}
+
+### ---------------- Recuperacao de senha e exclusao ----------------
+### O codigo de 6 digitos aparece no Mailpit: http://localhost:8025
+
+### 46. Pedir codigo para e-mail inexistente (202, sem e-mail)
+POST {{baseUrl}}/password/forgot
+Content-Type: application/json
+
+{
+  "email": "nao-existe@teste.com"
+}
+
+### 47. Pedir codigo da Ana (202). Copie o codigo do Mailpit para @code abaixo.
+POST {{baseUrl}}/password/forgot
+Content-Type: application/json
+
+{
+  "email": "ana@teste.com"
+}
+
+###
+@code = 000000
+
+### 48. Redefinir a senha (204). Troque @code pelo valor do Mailpit.
+POST {{baseUrl}}/password/reset
+Content-Type: application/json
+
+{
+  "email": "ana@teste.com",
+  "code": "{{code}}",
+  "newPassword": "senha5678",
+  "confirmPassword": "senha5678"
+}
+
+### 49. Login com a senha nova (200)
+# @name signinNova
+POST {{baseUrl}}/signin
+Content-Type: application/json
+
+{
+  "email": "ana@teste.com",
+  "password": "senha5678"
+}
+
+###
+@tokenNovo = {{signinNova.response.body.token}}
+
+### 50. Excluir a conta com senha errada (401, a conta continua)
+DELETE {{baseUrl}}/me
+Authorization: Bearer {{tokenNovo}}
+Content-Type: application/json
+
+{
+  "password": "errada123"
+}
+
+### 51. Excluir a conta (204)
+DELETE {{baseUrl}}/me
+Authorization: Bearer {{tokenNovo}}
+Content-Type: application/json
+
+{
+  "password": "senha5678"
+}
+
+### 52. A conta nao existe mais (401)
+GET {{baseUrl}}/me
+Authorization: Bearer {{tokenNovo}}

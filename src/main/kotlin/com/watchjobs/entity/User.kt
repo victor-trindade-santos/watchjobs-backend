@@ -8,6 +8,8 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 @Entity
 @Table(name = "users", schema = "core")
@@ -33,5 +35,14 @@ class User(
     var password: String = "",
 
     @field:Column(name = "last_login_at", columnDefinition = "timestamptz")
-    var lastLoginAt: LocalDateTime? = null
+    var lastLoginAt: LocalDateTime? = null,
+
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: OffsetDateTime = OffsetDateTime.now(ZoneOffset.UTC),
+
+    @Column(name = "email_verified_at")
+    var emailVerifiedAt: OffsetDateTime? = null,
+
+    @Column(name = "password_changed_at")
+    var passwordChangedAt: OffsetDateTime? = null
 )

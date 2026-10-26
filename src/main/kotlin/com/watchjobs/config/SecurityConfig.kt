@@ -71,7 +71,16 @@ class SecurityConfig(
             .authorizeHttpRequests {
                 it.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                it.requestMatchers(HttpMethod.POST, "/signin", "/signup").permitAll()
+                it.requestMatchers(HttpMethod.POST, "/signin", "/signup", "/auth/refresh").permitAll()
+                it.requestMatchers(HttpMethod.POST, "/password/forgot", "/password/reset").permitAll()
+                it.requestMatchers(
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                    "/v3/api-docs",
+                    "/v3/api-docs/**",
+                    "/v3/api-docs.yaml",
+                    "/webjars/**"
+                ).permitAll()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling {
@@ -86,3 +95,5 @@ class SecurityConfig(
         return http.build()    
     }
 }        
+
+    

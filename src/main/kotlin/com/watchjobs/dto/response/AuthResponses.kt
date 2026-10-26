@@ -13,7 +13,9 @@ data class UserResponse(
 
 data class AuthResponse(
     val token: String,
+    val refreshToken: String,
     val tokenType: String = "Bearer",
     val expiresAt: LocalDateTime,
     val user: UserResponse
 )
+

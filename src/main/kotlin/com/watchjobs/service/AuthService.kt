@@ -26,7 +26,8 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val authenticationManager: AuthenticationManager,
     private val jwtUtil: JwtUtil,
-    private val userMapper: UserMapper
+    private val userMapper: UserMapper,
+    private val refreshTokenService: RefreshTokenService
 ) {
     @Transactional
     fun signup(request: SignupRequest): UserResponse {
@@ -57,13 +58,36 @@ class AuthService(
             ?: throw BadCredentialsException("E-mail ou senha inválidos")
         user.lastLoginAt = LocalDateTime.now()
         userRepository.save(user)
-        return AuthResponse(
-            token = jwtUtil.generateToken(user),
-            expiresAt = LocalDateTime.now().plusMinutes(jwtUtil.expirationMinutes),
-            user = userMapper.toResponse(user)
-        )    
+        val refresh = refreshTokenService.issue(user)
+        return authResponse(user, refresh.value)
     }
 
+    @Transactional
+    fun refresh(value: String): AuthResponse {
+        val refresh = refreshTokenService.rotate(value)
+        return authResponse(refresh.token.user, refresh.value)
+    }
+
+    @Transactional
+    fun logout(user: User, value: String) {
+        refreshTokenService.revoke(value, requireNotNull(user.id))
+    }
+
+    private fun authResponse(user: User, refreshToken: String): AuthResponse =
+        AuthResponse(
+            token = jwtUtil.generateToken(user),
+            refreshToken = refreshToken,
+            expiresAt = LocalDateTime.now().plusMinutes(jwtUtil.expirationMinutes),
+            user = userMapper.toResponse(user)
+        )
+
     fun currentUser(user: User): UserResponse = userMapper.toResponse(user)
-    
+
+    @Transactional
+    fun deleteAccount(user: User, password: String) {
+        if (!passwordEncoder.matches(password, user.password)) {
+            throw BadCredentialsException("Senha incorreta")
+        }
+        userRepository.delete(user)
+    }
 }

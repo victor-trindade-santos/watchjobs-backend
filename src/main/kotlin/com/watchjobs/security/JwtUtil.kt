@@ -7,6 +7,8 @@ import io.jsonwebtoken.io.Decoders
 import io.jsonwebtoken.security.Keys
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.Date
 import javax.crypto.SecretKey
 
@@ -18,19 +20,22 @@ class JwtUtil(
     private val key: SecretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret))
 
     fun generateToken(user: User): String {
-        val now = Date()
-        val expiration = Date(now.time + expirationMinutes * 60_000)
+        val now = OffsetDateTime.now(ZoneOffset.UTC).toInstant()
+        val minimum = user.passwordChangedAt?.plusSeconds(1)?.toInstant()
+        val issued = if (minimum != null && now.isBefore(minimum)) minimum else now
+        val issuedAt = Date.from(issued)
+        val expiration = Date.from(issued.plusSeconds(expirationMinutes * 60))
 
         return Jwts.builder()
             .subject(user.email)
             .claim("uid", user.id)
-            .issuedAt(now)
+            .issuedAt(issuedAt)
             .expiration(expiration)
             .signWith(key)
             .compact()
     }
 
-    fun isValid(token: String): Boolean = 
+    fun isValid(token: String): Boolean =
         try {
             Jwts.parser().verifyWith(key).build().parseSignedClaims(token)
             true
@@ -40,6 +45,11 @@ class JwtUtil(
             false
         }
 
-     fun extractUsername(token: String): String =
-        Jwts.parser().verifyWith(key).build().parseSignedClaims(token).payload.subject  
+    fun extractUsername(token: String): String =
+        Jwts.parser().verifyWith(key).build().parseSignedClaims(token).payload.subject
+
+    fun issuedAt(token: String): OffsetDateTime =
+        Jwts.parser().verifyWith(key).build().parseSignedClaims(token).payload.issuedAt
+            .toInstant()
+            .atOffset(ZoneOffset.UTC)
 }
