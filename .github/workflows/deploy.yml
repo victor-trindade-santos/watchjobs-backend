@@ -1,0 +1,103 @@
+name: Deploy
+
+# A cada push na main: testa, cria um branch do Neon (ponto de restauração), migra, publica e confere /health.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: ${{ vars.GCP_REGION }}
+  SERVICE: watchjobs-api
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/watchjobs/api:${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: watchjobs
+          POSTGRES_USER: watchjobs
+          POSTGRES_PASSWORD: watchjobs
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U watchjobs"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      mailpit:
+        image: axllent/mailpit
+        ports: ["1025:1025", "8025:8025"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Testes e jar
+        run: ./gradlew build --no-daemon
+
+      - name: Branch do Neon antes da migration
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: pre-deploy-${{ github.run_number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Migrations (conexão direct, usuário dono)
+        env:
+          DB_URL_DIRECT: ${{ secrets.DB_URL_DIRECT }}
+          DB_OWNER_USERNAME: ${{ secrets.DB_OWNER_USERNAME }}
+          DB_OWNER_PASSWORD: ${{ secrets.DB_OWNER_PASSWORD }}
+          DB_URL: ${{ secrets.DB_URL_DIRECT }}
+          DB_USERNAME: ${{ secrets.DB_OWNER_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_OWNER_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          APP_CORS_ALLOWED_ORIGINS: ${{ vars.APP_CORS_ALLOWED_ORIGINS }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+          MAIL_HOST: ${{ vars.MAIL_HOST }}
+          MAIL_PORT: ${{ vars.MAIL_PORT }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+        run: java -jar build/libs/app.jar --spring.profiles.active=prod,migrate
+
+      - name: Autenticação no Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Imagem
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Publicar no Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" --region "$REGION" --platform managed \
+            --memory 512Mi --cpu 1 --cpu-boost --min-instances 0 --max-instances 2 \
+            --allow-unauthenticated \
+            --set-env-vars "SPRING_PROFILES_ACTIVE=prod,APP_CORS_ALLOWED_ORIGINS=${{ vars.APP_CORS_ALLOWED_ORIGINS }},PUBLIC_BASE_URL=${{ vars.PUBLIC_BASE_URL }},GITHUB_REPO=${{ github.repository }},MAIL_HOST=${{ vars.MAIL_HOST }},MAIL_PORT=${{ vars.MAIL_PORT }},MAIL_FROM=${{ vars.MAIL_FROM }}" \
+            --set-secrets "DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,JWT_SECRET=JWT_SECRET:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,ADZUNA_APP_ID=ADZUNA_APP_ID:latest,ADZUNA_APP_KEY=ADZUNA_APP_KEY:latest,GITHUB_DISPATCH_TOKEN=GITHUB_DISPATCH_TOKEN:latest"
+
+      - name: Teste em /health
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "$URL/health"; then exit 0; fi
+            sleep 10
+          done
+          exit 1

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 import com.watchjobs.mapper.UserMapper
+import com.watchjobs.notification.NotificationService
 
 
 @Service
@@ -27,7 +28,8 @@ class AuthService(
     private val authenticationManager: AuthenticationManager,
     private val jwtUtil: JwtUtil,
     private val userMapper: UserMapper,
-    private val refreshTokenService: RefreshTokenService
+    private val refreshTokenService: RefreshTokenService,
+    private val notifications: NotificationService
 ) {
     @Transactional
     fun signup(request: SignupRequest): UserResponse {
@@ -43,6 +45,8 @@ class AuthService(
                 "Não foi possível gerar o hash da senha"
             })
         )
+        // F5-06: todo usuário nasce com nota mínima 70, avisos no app ligados e e-mail desligado.
+        notifications.createDefaultPreference(requireNotNull(user.id))
         return userMapper.toResponse(user)
 }    
 

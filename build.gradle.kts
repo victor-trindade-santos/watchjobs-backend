@@ -34,6 +34,7 @@ dependencies {
 	implementation("io.jsonwebtoken:jjwt-impl:0.13.0")
 	implementation("io.jsonwebtoken:jjwt-jackson:0.13.0")
 	implementation("org.jsoup:jsoup:1.21.2")
+	implementation("org.apache.pdfbox:pdfbox:3.0.8")
 	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 	runtimeOnly("org.postgresql:postgresql")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
@@ -59,4 +60,13 @@ allOpen {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+// Um jar só (API, motor e migrator), com nome fixo para a imagem Docker e os workflows.
+tasks.bootJar {
+	archiveFileName.set("app.jar")
+}
+
+tasks.jar {
+	enabled = false
 }

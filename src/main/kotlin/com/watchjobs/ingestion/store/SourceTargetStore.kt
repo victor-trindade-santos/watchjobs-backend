@@ -75,6 +75,27 @@ class SourceTargetStore(
         }.list()
     }
 
+    // Busca sob demanda: empresas que não foram coletadas na última hora (independe do intervalo da empresa).
+    fun companiesNotFetchedSince(sourceId: Long, minutes: Int): List<FetchTarget> =
+        jdbc.sql(
+            """
+            SELECT sc.source_company_id, sc.external_key, sc.organization_id, o.name, sc.last_job_count
+              FROM core.source_company sc
+              JOIN core.organization o ON o.organization_id = sc.organization_id
+             WHERE sc.job_source_id = :sourceId AND sc.is_active
+               AND (sc.last_fetched_at IS NULL OR sc.last_fetched_at <= now() - make_interval(mins => :minutes))
+             ORDER BY sc.last_fetched_at NULLS FIRST, sc.source_company_id
+            """
+        ).param("sourceId", sourceId).param("minutes", minutes).query { rs, _ ->
+            FetchTarget(
+                sourceCompanyId = rs.getLong("source_company_id"),
+                externalKey = rs.getString("external_key"),
+                organizationId = rs.getLong("organization_id"),
+                organizationName = rs.getString("name"),
+                lastJobCount = (rs.getObject("last_job_count") as Number?)?.toInt()
+            )
+        }.list()
+
     // Segmentos com mais demanda primeiro; sem force, só os não coletados nas últimas 6 horas.
     fun segments(force: Boolean): List<FetchTarget> {
         val due = if (force) "" else "AND (last_ingested_at IS NULL OR last_ingested_at <= now() - interval '6 hours')"

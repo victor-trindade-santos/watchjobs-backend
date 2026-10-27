@@ -157,10 +157,10 @@ class AuthAccountPostgresTest : AuthSessionPostgresTestSupport() {
             "insert into core.certification (certification_name, issuer) values (?, 'Emissor')",
             "Cert $suffix"
         )
-        val organizationId = insertId(
-            "insert into core.organization (\"name\", organization_type) values (?, 'COMPANY')",
-            "Empresa $suffix"
-        )
+        val organizationId = requireNotNull(jdbc.queryForObject(
+            "insert into core.organization (name, organization_type, normalized_name) values (?, 'COMPANY', lower(?)) returning organization_id",
+            Number::class.java, "Empresa $suffix", "Empresa $suffix"
+        ))
         val contactId = insertId(
             "insert into core.contact (contact_type, contact_content) values ('EMAIL', ?)",
             "contato-$suffix@example.com"
@@ -175,6 +175,10 @@ class AuthAccountPostgresTest : AuthSessionPostgresTestSupport() {
             usersId
         )
         assertNotNull(savedJobId)
+        jdbc.update(
+            "insert into core.application_event (saved_job_id, users_id, event_type) values (?, ?, 'SAVED')",
+            savedJobId, usersId
+        )
         val preferenceId = jdbc.queryForObject(
             """
             insert into core.userpreference (preferred_work_mode, preferred_experience_level, preferred_roles, users_id)
@@ -253,6 +257,28 @@ class AuthAccountPostgresTest : AuthSessionPostgresTestSupport() {
         jdbc.update(
             "insert into core.certificationuserpreference (users_preference_id, certification_id) values (?, ?)",
             preferenceId, certificationId
+        )
+        jdbc.update(
+            """
+            insert into core.notification (users_id, notification_type, title, body, dedup_key)
+            values (?, 'SYSTEM', 'Aviso de teste', 'Conteúdo de teste', ?)
+            """.trimIndent(),
+            usersId, "account-deletion-$suffix"
+        )
+        jdbc.update(
+            """
+            insert into core.user_profile_summary (users_id, profile_version)
+            values (?, 1)
+            """.trimIndent(),
+            usersId
+        )
+        jdbc.update(
+            """
+            insert into core.profile_import
+                (users_id, file_sha256, preview, items_total, items_applied)
+            values (?, repeat('a', 64), '{}'::jsonb, 0, 0)
+            """.trimIndent(),
+            usersId
         )
         forgot(jdbc.queryForObject("select email from core.users where users_id = ?", String::class.java, usersId)!!)
     }

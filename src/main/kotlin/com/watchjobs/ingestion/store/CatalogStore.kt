@@ -10,21 +10,23 @@ import org.springframework.stereotype.Repository
 @Repository
 class CatalogStore(private val jdbc: JdbcClient) {
 
-    fun organizationId(name: String): Long {
+    fun organizationId(name: String, type: String = "COMPANY"): Long {
         val normalized = NameNormalizer.normalize(name)
         jdbc.sql(
             """
             INSERT INTO core.organization (name, organization_type, normalized_name)
-            VALUES (:name, 'COMPANY', :normalized)
+            VALUES (:name, :type, :normalized)
             ON CONFLICT (organization_type, normalized_name) DO NOTHING
             """
         )
             .param("name", name.trim().take(150))
+            .param("type", type)
             .param("normalized", normalized)
             .update()
         return jdbc.sql(
-            "SELECT organization_id FROM core.organization WHERE organization_type = 'COMPANY' AND normalized_name = :normalized"
+            "SELECT organization_id FROM core.organization WHERE organization_type = :type AND normalized_name = :normalized"
         )
+            .param("type", type)
             .param("normalized", normalized)
             .query(Long::class.java)
             .single()
@@ -33,6 +35,13 @@ class CatalogStore(private val jdbc: JdbcClient) {
     // O país é obrigatório em core.location; sem ele, a vaga fica só com o texto original.
     fun locationId(countryCode: String?, state: String?, city: String?): Long? {
         if (countryCode == null || (state == null && city == null)) return null
+        return upsertLocation(countryCode, state, city)
+    }
+
+    // Local que é só o país (preferências e dados pessoais).
+    fun countryLocationId(countryCode: String): Long = upsertLocation(countryCode, null, null)
+
+    private fun upsertLocation(countryCode: String, state: String?, city: String?): Long {
         jdbc.sql(
             """
             INSERT INTO core."location" (country_code, state, city)

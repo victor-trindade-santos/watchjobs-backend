@@ -54,5 +54,6 @@ data class JobDetailResponse(
     val job: JobPostingResponse,
     val description: String?,
     val skills: List<JobSkillResponse>,
-    val corpusStatus: String
+    val corpusStatus: String,
+    val match: com.watchjobs.matching.MatchResult? = null
 )

@@ -1,5 +1,8 @@
 package com.watchjobs.service
 
+import com.watchjobs.board.ApplicationEventService
+import com.watchjobs.board.BoardColumnMapper
+import com.watchjobs.board.EventType
 import com.watchjobs.dto.request.SavedJobRequest
 import com.watchjobs.dto.response.SavedJobResponse
 import com.watchjobs.entity.SavedJob
@@ -25,13 +28,15 @@ class SavedJobService(
     private val userRepository: UserRepository,
     private val savedJobMapper: SavedJobMapper,
     private val jdbc: JdbcClient,
-    private val mapper: ObjectMapper
+    private val mapper: ObjectMapper,
+    private val events: ApplicationEventService
 ) {
     @Transactional
     fun create(userId: Int, request: SavedJobRequest): SavedJobResponse {
         validateSalaryRange(request)
         val user = userRepository.getReferenceById(userId)
         val savedJob = savedJobRepository.save(savedJobMapper.toEntity(request, user))
+        events.saved(requireNotNull(savedJob.id), userId, savedJob.status)
         return savedJobMapper.toResponse(savedJob)
     }
 
@@ -51,11 +56,11 @@ class SavedJobService(
 
     // full_description e requirements_snapshot não são mapeados na entidade (o snapshot é jsonb).
     private fun withJobContent(response: SavedJobResponse): SavedJobResponse {
-        val (description, snapshotJson) = jdbc.sql(
-            "SELECT full_description, CAST(requirements_snapshot AS text) AS snapshot FROM core.saved_job WHERE saved_job_id = :id"
+        val (description, snapshotJson, roleFamilyColumn) = jdbc.sql(
+            "SELECT full_description, CAST(requirements_snapshot AS text) AS snapshot, role_family FROM core.saved_job WHERE saved_job_id = :id"
         )
             .param("id", response.id)
-            .query { rs, _ -> rs.getString("full_description") to rs.getString("snapshot") }
+            .query { rs, _ -> Triple(rs.getString("full_description"), rs.getString("snapshot"), rs.getString("role_family")) }
             .optional()
             .orElse(null) ?: return response
         @Suppress("UNCHECKED_CAST")
@@ -71,7 +76,7 @@ class SavedJobService(
             fullDescription = description,
             skills = skills,
             sourceName = snapshot["source"] as? String,
-            roleFamily = snapshot["roleFamily"] as? String,
+            roleFamily = roleFamilyColumn ?: snapshot["roleFamily"] as? String,
             rawLocation = snapshot["rawLocation"] as? String
         )
     }
@@ -87,11 +92,16 @@ class SavedJobService(
         }
 
         val statusChanged = savedJob.status != request.status
+        val previousStatus = savedJob.status
         savedJobMapper.updateEntity(savedJob, request)
 
         if (statusChanged) {
             savedJob.statusUpdatedAt = LocalDateTime.now()
             application?.status = request.status.name
+            events.record(id, userId, EventType.STATUS_CHANGED, previousStatus.name, request.status.name, application?.id)
+            if (BoardColumnMapper.columnOf(previousStatus) != BoardColumnMapper.columnOf(request.status)) {
+                events.appendToColumn(id, userId, request.status)
+            }
         }
         return savedJobMapper.toResponse(savedJobRepository.save(savedJob))
     }

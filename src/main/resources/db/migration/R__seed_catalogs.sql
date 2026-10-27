@@ -1,5 +1,5 @@
--- Catálogo inicial de skills e apelidos, usado pelo extrator de skills da ingestão.
--- Migration repetível e idempotente. A F3-01 amplia a lista (idiomas, formações e cerca de 150 skills).
+-- Catálogos: skills e apelidos (extrator da ingestão e autocompletar), idiomas e formações.
+-- Migration repetível e idempotente: rodar de novo não duplica nada.
 -- normalized_alias: minúsculas e sem acento, mantendo "+", "#", "." e espaços.
 -- Nomes curtos e ambíguos ("Go", "R", "C") usam CONTEXT_REQUIRED.
 
@@ -132,3 +132,201 @@ ON CONFLICT (normalized_alias) DO UPDATE
     SET skill_id = EXCLUDED.skill_id,
         alias = EXCLUDED.alias,
         match_policy = EXCLUDED.match_policy;
+
+-- F3-01: segunda leva de skills comuns em vagas de tecnologia
+INSERT INTO core.skill (skill_name, skill_category) VALUES
+    ('Bash', 'LANGUAGE'), ('Objective-C', 'LANGUAGE'), ('Groovy', 'LANGUAGE'), ('Lua', 'LANGUAGE'),
+    ('Haskell', 'LANGUAGE'), ('Clojure', 'LANGUAGE'), ('Solidity', 'LANGUAGE'), ('MATLAB', 'LANGUAGE'),
+    ('COBOL', 'LANGUAGE'), ('Delphi', 'LANGUAGE'), ('VBA', 'LANGUAGE'), ('ABAP', 'LANGUAGE'), ('PL/SQL', 'LANGUAGE'),
+    ('Express', 'FRAMEWORK'), ('NestJS', 'FRAMEWORK'), ('Laravel', 'FRAMEWORK'), ('Symfony', 'FRAMEWORK'),
+    ('Quarkus', 'FRAMEWORK'), ('Micronaut', 'FRAMEWORK'), ('Ktor', 'FRAMEWORK'), ('Hibernate', 'FRAMEWORK'),
+    ('Svelte', 'FRAMEWORK'), ('Nuxt.js', 'FRAMEWORK'), ('Jetpack Compose', 'FRAMEWORK'), ('SwiftUI', 'FRAMEWORK'),
+    ('Xamarin', 'FRAMEWORK'), ('Ionic', 'FRAMEWORK'), ('Electron', 'FRAMEWORK'), ('jQuery', 'FRAMEWORK'),
+    ('Bootstrap', 'FRAMEWORK'), ('Tailwind CSS', 'FRAMEWORK'), ('Redux', 'FRAMEWORK'),
+    ('Kotlin Multiplatform', 'FRAMEWORK'), ('Unity', 'FRAMEWORK'), ('Blazor', 'FRAMEWORK'),
+    ('Oracle', 'DATABASE'), ('SQL Server', 'DATABASE'), ('SQLite', 'DATABASE'), ('Cassandra', 'DATABASE'),
+    ('DynamoDB', 'DATABASE'), ('Firebase', 'DATABASE'), ('MariaDB', 'DATABASE'), ('Neo4j', 'DATABASE'),
+    ('Snowflake', 'DATABASE'), ('BigQuery', 'DATABASE'), ('Redshift', 'DATABASE'), ('Databricks', 'DATA'),
+    ('Ansible', 'TOOL'), ('Helm', 'TOOL'), ('Prometheus', 'TOOL'), ('Grafana', 'TOOL'), ('Datadog', 'TOOL'),
+    ('GitHub Actions', 'TOOL'), ('GitLab CI', 'TOOL'), ('Maven', 'TOOL'), ('Gradle', 'TOOL'), ('Webpack', 'TOOL'),
+    ('Vite', 'TOOL'), ('Nginx', 'TOOL'), ('Jira', 'TOOL'), ('Postman', 'TOOL'), ('Kibana', 'TOOL'),
+    ('Splunk', 'TOOL'), ('SonarQube', 'TOOL'), ('Argo CD', 'TOOL'), ('Pulumi', 'TOOL'), ('CloudFormation', 'TOOL'),
+    ('gRPC', 'TOOL'),
+    ('TDD', 'PRACTICE'), ('DDD', 'PRACTICE'), ('Clean Architecture', 'PRACTICE'), ('SOLID', 'PRACTICE'),
+    ('Kanban', 'PRACTICE'), ('Agile', 'PRACTICE'), ('DevOps', 'PRACTICE'), ('SRE', 'PRACTICE'),
+    ('Design Patterns', 'PRACTICE'), ('OAuth', 'PRACTICE'), ('Serverless', 'CLOUD'), ('AWS Lambda', 'CLOUD'),
+    ('Hadoop', 'DATA'), ('scikit-learn', 'DATA'), ('NumPy', 'DATA'), ('Machine Learning', 'DATA'),
+    ('Deep Learning', 'DATA'), ('NLP', 'DATA'), ('LLM', 'DATA'), ('LangChain', 'DATA'), ('MLflow', 'DATA'),
+    ('Looker', 'DATA'), ('Excel', 'DATA'), ('ETL', 'DATA'),
+    ('UX', 'DESIGN'), ('UI', 'DESIGN'), ('Adobe XD', 'DESIGN'),
+    ('JUnit', 'TESTING'), ('Mockito', 'TESTING'), ('Playwright', 'TESTING'), ('Appium', 'TESTING'),
+    ('JMeter', 'TESTING'), ('Pytest', 'TESTING'), ('Cucumber', 'TESTING')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO core.skill_alias (skill_id, alias, normalized_alias, match_policy)
+SELECT s.skill_id, a.alias, a.normalized_alias, a.match_policy
+  FROM (VALUES
+    ('Bash', 'Bash', 'bash', 'WORD'),
+    ('Bash', 'Shell Script', 'shell script', 'WORD'),
+    ('Objective-C', 'Objective-C', 'objective-c', 'WORD'),
+    ('Objective-C', 'ObjC', 'objc', 'WORD'),
+    ('Groovy', 'Groovy', 'groovy', 'WORD'),
+    ('Lua', 'Lua', 'lua', 'EXACT_CASE'),
+    ('Haskell', 'Haskell', 'haskell', 'WORD'),
+    ('Clojure', 'Clojure', 'clojure', 'WORD'),
+    ('Solidity', 'Solidity', 'solidity', 'WORD'),
+    ('MATLAB', 'MATLAB', 'matlab', 'WORD'),
+    ('COBOL', 'COBOL', 'cobol', 'WORD'),
+    ('Delphi', 'Delphi', 'delphi', 'WORD'),
+    ('VBA', 'VBA', 'vba', 'WORD'),
+    ('ABAP', 'ABAP', 'abap', 'WORD'),
+    ('PL/SQL', 'PL/SQL', 'pl/sql', 'WORD'),
+    ('PL/SQL', 'PLSQL', 'plsql', 'WORD'),
+    ('Express', 'Express.js', 'express.js', 'WORD'),
+    ('Express', 'ExpressJS', 'expressjs', 'WORD'),
+    ('Express', 'Express', 'express', 'CONTEXT_REQUIRED'),
+    ('NestJS', 'NestJS', 'nestjs', 'WORD'),
+    ('NestJS', 'Nest.js', 'nest.js', 'WORD'),
+    ('Laravel', 'Laravel', 'laravel', 'WORD'),
+    ('Symfony', 'Symfony', 'symfony', 'WORD'),
+    ('Quarkus', 'Quarkus', 'quarkus', 'WORD'),
+    ('Micronaut', 'Micronaut', 'micronaut', 'WORD'),
+    ('Ktor', 'Ktor', 'ktor', 'WORD'),
+    ('Hibernate', 'Hibernate', 'hibernate', 'WORD'),
+    ('Svelte', 'Svelte', 'svelte', 'WORD'),
+    ('Nuxt.js', 'Nuxt', 'nuxt', 'WORD'),
+    ('Nuxt.js', 'Nuxt.js', 'nuxt.js', 'WORD'),
+    ('Jetpack Compose', 'Jetpack Compose', 'jetpack compose', 'WORD'),
+    ('SwiftUI', 'SwiftUI', 'swiftui', 'WORD'),
+    ('Xamarin', 'Xamarin', 'xamarin', 'WORD'),
+    ('Ionic', 'Ionic', 'ionic', 'WORD'),
+    ('Electron', 'Electron', 'electron', 'WORD'),
+    ('jQuery', 'jQuery', 'jquery', 'WORD'),
+    ('Bootstrap', 'Bootstrap', 'bootstrap', 'WORD'),
+    ('Tailwind CSS', 'Tailwind', 'tailwind', 'WORD'),
+    ('Tailwind CSS', 'Tailwind CSS', 'tailwind css', 'WORD'),
+    ('Tailwind CSS', 'TailwindCSS', 'tailwindcss', 'WORD'),
+    ('Redux', 'Redux', 'redux', 'WORD'),
+    ('Kotlin Multiplatform', 'Kotlin Multiplatform', 'kotlin multiplatform', 'WORD'),
+    ('Unity', 'Unity', 'unity', 'WORD'),
+    ('Blazor', 'Blazor', 'blazor', 'WORD'),
+    ('Oracle', 'Oracle', 'oracle', 'WORD'),
+    ('SQL Server', 'SQL Server', 'sql server', 'WORD'),
+    ('SQL Server', 'MSSQL', 'mssql', 'WORD'),
+    ('SQLite', 'SQLite', 'sqlite', 'WORD'),
+    ('Cassandra', 'Cassandra', 'cassandra', 'WORD'),
+    ('DynamoDB', 'DynamoDB', 'dynamodb', 'WORD'),
+    ('Firebase', 'Firebase', 'firebase', 'WORD'),
+    ('MariaDB', 'MariaDB', 'mariadb', 'WORD'),
+    ('Neo4j', 'Neo4j', 'neo4j', 'WORD'),
+    ('Snowflake', 'Snowflake', 'snowflake', 'WORD'),
+    ('BigQuery', 'BigQuery', 'bigquery', 'WORD'),
+    ('Redshift', 'Redshift', 'redshift', 'WORD'),
+    ('Databricks', 'Databricks', 'databricks', 'WORD'),
+    ('Ansible', 'Ansible', 'ansible', 'WORD'),
+    ('Helm', 'Helm', 'helm', 'WORD'),
+    ('Prometheus', 'Prometheus', 'prometheus', 'WORD'),
+    ('Grafana', 'Grafana', 'grafana', 'WORD'),
+    ('Datadog', 'Datadog', 'datadog', 'WORD'),
+    ('GitHub Actions', 'GitHub Actions', 'github actions', 'WORD'),
+    ('GitLab CI', 'GitLab CI', 'gitlab ci', 'WORD'),
+    ('GitLab CI', 'GitLab-CI', 'gitlab-ci', 'WORD'),
+    ('Maven', 'Maven', 'maven', 'WORD'),
+    ('Gradle', 'Gradle', 'gradle', 'WORD'),
+    ('Webpack', 'Webpack', 'webpack', 'WORD'),
+    ('Vite', 'Vite', 'vite', 'WORD'),
+    ('Nginx', 'Nginx', 'nginx', 'WORD'),
+    ('Jira', 'Jira', 'jira', 'WORD'),
+    ('Postman', 'Postman', 'postman', 'WORD'),
+    ('Kibana', 'Kibana', 'kibana', 'WORD'),
+    ('Splunk', 'Splunk', 'splunk', 'WORD'),
+    ('SonarQube', 'SonarQube', 'sonarqube', 'WORD'),
+    ('Argo CD', 'Argo CD', 'argo cd', 'WORD'),
+    ('Argo CD', 'ArgoCD', 'argocd', 'WORD'),
+    ('Pulumi', 'Pulumi', 'pulumi', 'WORD'),
+    ('CloudFormation', 'CloudFormation', 'cloudformation', 'WORD'),
+    ('gRPC', 'gRPC', 'grpc', 'WORD'),
+    ('TDD', 'TDD', 'tdd', 'WORD'),
+    ('DDD', 'DDD', 'ddd', 'CONTEXT_REQUIRED'),
+    ('DDD', 'Domain-Driven Design', 'domain-driven design', 'WORD'),
+    ('DDD', 'Domain Driven Design', 'domain driven design', 'WORD'),
+    ('Clean Architecture', 'Clean Architecture', 'clean architecture', 'WORD'),
+    ('Clean Architecture', 'Arquitetura Limpa', 'arquitetura limpa', 'WORD'),
+    ('SOLID', 'SOLID', 'solid', 'EXACT_CASE'),
+    ('Kanban', 'Kanban', 'kanban', 'WORD'),
+    ('Agile', 'Agile', 'agile', 'WORD'),
+    ('Agile', 'Metodologias Ágeis', 'metodologias ageis', 'WORD'),
+    ('DevOps', 'DevOps', 'devops', 'WORD'),
+    ('SRE', 'SRE', 'sre', 'WORD'),
+    ('Design Patterns', 'Design Patterns', 'design patterns', 'WORD'),
+    ('Design Patterns', 'Padrões de Projeto', 'padroes de projeto', 'WORD'),
+    ('OAuth', 'OAuth', 'oauth', 'WORD'),
+    ('OAuth', 'OAuth2', 'oauth2', 'WORD'),
+    ('Serverless', 'Serverless', 'serverless', 'WORD'),
+    ('AWS Lambda', 'AWS Lambda', 'aws lambda', 'WORD'),
+    ('Hadoop', 'Hadoop', 'hadoop', 'WORD'),
+    ('scikit-learn', 'scikit-learn', 'scikit-learn', 'WORD'),
+    ('scikit-learn', 'sklearn', 'sklearn', 'WORD'),
+    ('NumPy', 'NumPy', 'numpy', 'WORD'),
+    ('Machine Learning', 'Machine Learning', 'machine learning', 'WORD'),
+    ('Machine Learning', 'Aprendizado de Máquina', 'aprendizado de maquina', 'WORD'),
+    ('Deep Learning', 'Deep Learning', 'deep learning', 'WORD'),
+    ('NLP', 'NLP', 'nlp', 'WORD'),
+    ('NLP', 'Processamento de Linguagem Natural', 'processamento de linguagem natural', 'WORD'),
+    ('LLM', 'LLM', 'llm', 'WORD'),
+    ('LLM', 'LLMs', 'llms', 'WORD'),
+    ('LangChain', 'LangChain', 'langchain', 'WORD'),
+    ('MLflow', 'MLflow', 'mlflow', 'WORD'),
+    ('Looker', 'Looker', 'looker', 'WORD'),
+    ('Excel', 'Excel', 'excel', 'WORD'),
+    ('ETL', 'ETL', 'etl', 'WORD'),
+    ('UX', 'UX', 'ux', 'WORD'),
+    ('UX', 'UX Design', 'ux design', 'WORD'),
+    ('UI', 'UI', 'ui', 'EXACT_CASE'),
+    ('Adobe XD', 'Adobe XD', 'adobe xd', 'WORD'),
+    ('JUnit', 'JUnit', 'junit', 'WORD'),
+    ('Mockito', 'Mockito', 'mockito', 'WORD'),
+    ('Playwright', 'Playwright', 'playwright', 'WORD'),
+    ('Appium', 'Appium', 'appium', 'WORD'),
+    ('JMeter', 'JMeter', 'jmeter', 'WORD'),
+    ('Pytest', 'Pytest', 'pytest', 'WORD'),
+    ('Cucumber', 'Cucumber', 'cucumber', 'WORD')
+  ) AS a (skill_name, alias, normalized_alias, match_policy)
+  JOIN core.skill s ON lower(s.skill_name) = lower(a.skill_name)
+ON CONFLICT (normalized_alias) DO UPDATE
+    SET skill_id = EXCLUDED.skill_id,
+        alias = EXCLUDED.alias,
+        match_policy = EXCLUDED.match_policy;
+
+-- Idiomas (unicidade por lower(language_name), V3)
+INSERT INTO core."language" (language_name) VALUES
+    ('Português'), ('Inglês'), ('Espanhol'), ('Francês'), ('Alemão'), ('Italiano'), ('Japonês'),
+    ('Mandarim'), ('Coreano'), ('Russo'), ('Árabe'), ('Holandês'), ('Libras')
+ON CONFLICT DO NOTHING;
+
+-- Formações: nível (código) + área. Unicidade (education_level, field_of_study), V3
+INSERT INTO core.education (education_level, field_of_study)
+SELECT l.level, f.field
+  FROM (VALUES ('BACHELOR'), ('POSTGRADUATE'), ('MASTER'), ('DOCTORATE')) AS l (level)
+ CROSS JOIN (VALUES
+    ('Ciência da Computação'), ('Engenharia de Software'), ('Sistemas de Informação'),
+    ('Engenharia da Computação'), ('Engenharia Elétrica'), ('Engenharia de Produção'), ('Matemática'),
+    ('Estatística'), ('Física'), ('Administração'), ('Economia'), ('Design'), ('Ciência de Dados'),
+    ('Segurança da Informação'), ('Outra área')
+ ) AS f (field)
+UNION ALL
+SELECT 'TECHNOLOGIST', f.field FROM (VALUES
+    ('Análise e Desenvolvimento de Sistemas'), ('Redes de Computadores'), ('Gestão da Tecnologia da Informação'),
+    ('Segurança da Informação'), ('Ciência de Dados'), ('Jogos Digitais'), ('Outra área')
+ ) AS f (field)
+UNION ALL
+SELECT 'TECHNICAL', f.field FROM (VALUES
+    ('Informática'), ('Desenvolvimento de Sistemas'), ('Redes de Computadores'), ('Outra área')
+ ) AS f (field)
+UNION ALL
+SELECT 'MBA', f.field FROM (VALUES
+    ('Gestão de Projetos'), ('Gestão de TI'), ('Data Science'), ('Gestão Empresarial'), ('Outra área')
+ ) AS f (field)
+UNION ALL
+SELECT 'HIGH_SCHOOL', 'Ensino Médio'
+ON CONFLICT DO NOTHING;

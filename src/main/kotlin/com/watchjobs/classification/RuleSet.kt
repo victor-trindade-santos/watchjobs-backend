@@ -88,7 +88,9 @@ class RuleSet(
     }
 
     companion object {
-        fun sha256(value: String): String =
-            MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
+        fun sha256(value: String): String = sha256Bytes(value.toByteArray())
+
+        fun sha256Bytes(value: ByteArray): String =
+            MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }
     }
 }

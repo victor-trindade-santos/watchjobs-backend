@@ -1,5 +1,8 @@
 package com.watchjobs.service
 
+import com.watchjobs.board.ApplicationEventService
+import com.watchjobs.board.BoardColumnMapper
+import com.watchjobs.board.EventType
 import com.watchjobs.dto.request.ApplicationRequest
 import com.watchjobs.dto.response.ApplicationResponse
 import com.watchjobs.entity.Application
@@ -24,7 +27,8 @@ class ApplicationService(
     private val savedJobRepository: SavedJobRepository,
     private val applicationStageRepository: ApplicationStageRepository,
     private val userRepository: UserRepository,
-    private val applicationMapper: ApplicationMapper
+    private val applicationMapper: ApplicationMapper,
+    private val events: ApplicationEventService
 ) {
     @Transactional
     fun create(userId: Int, request: ApplicationRequest): ApplicationResponse {
@@ -37,10 +41,14 @@ class ApplicationService(
         val stage = findStage(request.stageId)
         val user = userRepository.getReferenceById(userId)
 
+        val previousStatus = savedJob.status
         syncSavedJobStatus(savedJob, request.status)
         val application = applicationRepository.save(
             applicationMapper.toEntity(request, user, savedJob, stage)
         )
+        events.record(request.savedJobId, userId, EventType.APPLICATION_CREATED, previousStatus.name, request.status,
+            application.id, toStageId = stage.id)
+        moveCardIfColumnChanged(request.savedJobId, userId, previousStatus, savedJob.status)
         return applicationMapper.toResponse(application)
     }
 
@@ -67,9 +75,20 @@ class ApplicationService(
             throw BusinessException("Não é possível trocar a vaga de uma candidatura")
         }
         val stage = findStage(request.stageId)
+        val previousStage = application.stage?.id
+        val previousStatus = savedJob.status
 
         applicationMapper.updateEntity(application, request, stage)
         syncSavedJobStatus(savedJob, request.status)
+        val savedJobId = requireNotNull(savedJob.id)
+        if (previousStage != stage.id) {
+            events.record(savedJobId, userId, EventType.STAGE_CHANGED, applicationId = application.id,
+                fromStageId = previousStage, toStageId = stage.id)
+        }
+        if (previousStatus != savedJob.status) {
+            events.record(savedJobId, userId, EventType.STATUS_CHANGED, previousStatus.name, savedJob.status.name, application.id)
+            moveCardIfColumnChanged(savedJobId, userId, previousStatus, savedJob.status)
+        }
         return applicationMapper.toResponse(applicationRepository.save(application))
     }
 
@@ -77,10 +96,18 @@ class ApplicationService(
     fun delete(userId: Int, id: Int) {
         val application = findOwned(userId, id)
         val savedJob = application.savedJob ?: error("Candidatura sem vaga")
+        val previousStatus = savedJob.status
+        val savedJobId = requireNotNull(savedJob.id)
+        events.record(savedJobId, userId, EventType.APPLICATION_DELETED, previousStatus.name, SavedJobStatus.SAVED.name, application.id)
         applicationRepository.delete(application)
         savedJob.status = SavedJobStatus.SAVED
         savedJob.statusUpdatedAt = LocalDateTime.now()
         savedJobRepository.save(savedJob)
+        moveCardIfColumnChanged(savedJobId, userId, previousStatus, SavedJobStatus.SAVED)
+    }
+
+    private fun moveCardIfColumnChanged(savedJobId: Long, userId: Int, from: SavedJobStatus, to: SavedJobStatus) {
+        if (BoardColumnMapper.columnOf(from) != BoardColumnMapper.columnOf(to)) events.appendToColumn(savedJobId, userId, to)
     }
 
     private fun findOwned(userId: Int, id: Int): Application =

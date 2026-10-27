@@ -9,6 +9,7 @@ import com.watchjobs.security.AppUserDetails
 import com.watchjobs.security.AppUserDetailsService
 import com.watchjobs.security.JwtUtil
 import com.watchjobs.service.AuthService
+import com.watchjobs.service.PasswordResetService
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
 import org.mockito.Mockito.verifyNoInteractions
@@ -35,6 +36,9 @@ class AuthControllerWebTest {
 
     @MockitoBean
     lateinit var authService: AuthService
+
+    @MockitoBean
+    lateinit var passwordResetService: PasswordResetService
 
     @MockitoBean
     lateinit var appUserDetailsService: AppUserDetailsService

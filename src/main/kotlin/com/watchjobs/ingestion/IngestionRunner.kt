@@ -1,6 +1,5 @@
 package com.watchjobs.ingestion
 
-import com.watchjobs.ingestion.pipeline.IngestionPipeline
 import com.watchjobs.ingestion.pipeline.RoundOptions
 import org.springframework.boot.CommandLineRunner
 import org.springframework.boot.ExitCodeGenerator
@@ -15,11 +14,11 @@ import kotlin.system.exitProcess
 @Component
 @Profile("ingestion")
 class IngestionRunner(
-    private val pipeline: IngestionPipeline,
+    private val round: MotorRound,
     private val context: ApplicationContext
 ) : CommandLineRunner {
     override fun run(vararg args: String) {
-        val summary = pipeline.runRound(RoundOptions.parse(args))
+        val summary = round.run(RoundOptions.parse(args))
         val code = if (summary.allFailed) 1 else 0
         exitProcess(SpringApplication.exit(context, ExitCodeGenerator { code }))
     }

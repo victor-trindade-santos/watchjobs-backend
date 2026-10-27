@@ -256,6 +256,7 @@ class IngestionPipeline(
         try {
             jdbc.sql("SELECT discovery.run_daily_maintenance()").query().singleRow()
             jdbc.sql("SELECT core.purge_expired_auth()").query().singleRow()
+            jdbc.sql("SELECT core.purge_profile_imports()").query().singleRow()
         } catch (ex: Exception) {
             log.error("Manutenção diária falhou: {}", ex.message)
         }

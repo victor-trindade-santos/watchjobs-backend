@@ -56,16 +56,16 @@ class SecurityConfig(
     fun corsConfigurationSource(): CorsConfigurationSource {
         val config = CorsConfiguration()
         config.allowedOrigins = allowedOrigins.split(",").map { it.trim() }
-        config.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
+        config.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
         config.allowedHeaders = listOf("Authorization", "Content-Type")
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", config)
         return source
     }
 
-    // No perfil ingestion não há servidor web, então não existe HttpSecurity.
+    // Nos perfis ingestion e migrate não há servidor web, então não existe HttpSecurity.
     @Bean
-    @Profile("!ingestion")
+    @Profile("!ingestion & !migrate")
     fun securityFilterChain(http: HttpSecurity, jwtAuthenticationFilter: JwtAuthenticationFilter): SecurityFilterChain {
         http
             .csrf { it.disable() }
@@ -76,6 +76,7 @@ class SecurityConfig(
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/signin", "/signup", "/auth/refresh").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/password/forgot", "/password/reset").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/health", "/notifications/unsubscribe").permitAll()
                 it.requestMatchers(
                     "/swagger-ui.html",
                     "/swagger-ui/**",

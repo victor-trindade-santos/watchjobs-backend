@@ -93,7 +93,7 @@ class JobCorpusQueries(private val jdbc: JdbcClient) {
             .query { rs, _ -> JobSkillResponse(rs.getString("skill_name"), rs.getBoolean("is_required")) }
             .list()
 
-    private fun map(rs: ResultSet): CorpusJobRow {
+    fun map(rs: ResultSet): CorpusJobRow {
         val expiresAt = rs.getObject("expires_at", OffsetDateTime::class.java)
         return CorpusJobRow(
             response = JobPostingResponse(
@@ -132,7 +132,7 @@ class JobCorpusQueries(private val jdbc: JdbcClient) {
     }
 
     companion object {
-        private val SELECT = """
+        val SELECT = """
             SELECT j.discovered_job_id, j.discovered_at, j.source_id, j.external_id, j.title, j.organization_name,
                    j.job_url, j.work_mode, j.experience_level, j.job_type, j.role_family, j.salary_min, j.salary_max,
                    j.salary_currency, j.salary_period, j.description_snippet, j.full_description, j.posted_at,
