@@ -66,6 +66,8 @@ jobs:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           branch_name: pre-deploy
           api_key: ${{ secrets.NEON_API_KEY }}
+          # O projeto tem o dono e o watchjobs_app; sem o papel a action não escolhe a connection string.
+          username: ${{ secrets.DB_OWNER_USERNAME }}
 
       - name: Migrations (conexão direct, usuário dono)
         env:
