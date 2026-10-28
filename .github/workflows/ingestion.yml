@@ -36,7 +36,7 @@ jobs:
         if: steps.jar.outputs.cache-hit != 'true'
       - name: Compilar
         if: steps.jar.outputs.cache-hit != 'true'
-        run: ./gradlew bootJar --no-daemon
+        run: bash ./gradlew bootJar --no-daemon
 
       # Código de saída 1 só quando todas as fontes falharam (o GitHub avisa por e-mail).
       - name: Rodada

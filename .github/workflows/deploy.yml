@@ -48,7 +48,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Testes e jar
-        run: ./gradlew build --no-daemon
+        # bash, não ./gradlew: o bit de execução se perde em commits feitos no Windows.
+        run: bash ./gradlew build --no-daemon
 
       # Um branch só (pre-deploy), recriado a cada deploy: o plano gratuito do Neon limita o número de branches.
       - name: Apagar o branch de restauração anterior

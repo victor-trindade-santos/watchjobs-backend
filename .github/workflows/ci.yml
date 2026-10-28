@@ -31,7 +31,8 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
       # Os testes de integração aplicam todas as migrations (Flyway) num Postgres 17 vazio.
-      - run: ./gradlew build --no-daemon
+      # bash, não ./gradlew: o bit de execução se perde em commits feitos no Windows.
+      - run: bash ./gradlew build --no-daemon
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
