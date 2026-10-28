@@ -96,16 +96,21 @@ class FeedFiltersPostgresTest : AuthSessionPostgresTestSupport() {
         val skill = jdbc.query("SELECT skill_id, skill_name FROM core.skill ORDER BY skill_id LIMIT 1") { rs, _ ->
             ExtractedSkill(rs.getLong(1), rs.getString(2), true)
         }.single()
-        store.insert(job("D", "MID", "REMOTE", null, listOf(skill)), null, null)
+        val key = store.insert(job("D", "MID", "REMOTE", null, listOf(skill)), null, null)
+        store.insertSkills(key, listOf(skill))
 
-        val skills = objectMapper.readTree(
-            mockMvc.get("/jobs/skills?q=${skill.skillName.take(3)}") { header("Authorization", bearer) }.andReturn().response.contentAsString
-        )
-        assertEquals(true, skills.values().any { it["id"].asLong() == skill.skillId })
+        val skillsResult = mockMvc.get("/jobs/skills?q=${skill.skillName}") { header("Authorization", bearer) }.andReturn().response
+        val skills = objectMapper.readTree(skillsResult.contentAsString)
+        assertEquals(200, skillsResult.status, skillsResult.contentAsString)
+        assertEquals(true, skills.values().any { it["id"].asLong() == skill.skillId }, skillsResult.contentAsString)
 
-        val facets = objectMapper.readTree(
-            mockMvc.get("/jobs/facets") { header("Authorization", bearer) }.andReturn().response.contentAsString
+        val facetsResult = mockMvc.get("/jobs/facets") { header("Authorization", bearer) }.andReturn().response
+        val facets = objectMapper.readTree(facetsResult.contentAsString)
+        assertEquals(200, facetsResult.status, facetsResult.contentAsString)
+        assertEquals(
+            true,
+            facets["companies"].values().any { it["value"].asString() == "Empresa $token" },
+            facetsResult.contentAsString
         )
-        assertEquals(true, facets["companies"].values().any { it["value"].asString() == "Empresa $token" })
     }
 }

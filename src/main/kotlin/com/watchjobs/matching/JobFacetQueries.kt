@@ -18,14 +18,14 @@ class JobFacetQueries(private val jdbc: JdbcClient) {
     private fun facet(column: String, join: String, limit: Int): List<FacetValue> =
         jdbc.sql(
             """
-            SELECT $column AS value, count(*) AS total
+            SELECT $column AS facet_value, count(*) AS total
               FROM discovery.discovered_job j $join
              WHERE j.corpus_status = 'ACTIVE' AND j.expires_at > now() AND $column IS NOT NULL AND $column <> ''
              GROUP BY $column
              ORDER BY total DESC, $column
              LIMIT :limit
             """
-        ).param("limit", limit).query { rs, _ -> FacetValue(rs.getString("value").trim(), rs.getLong("total")) }.list()
+        ).param("limit", limit).query { rs, _ -> FacetValue(rs.getString("facet_value").trim(), rs.getLong("total")) }.list()
 
     // Skills que aparecem em vagas ativas, com o número de vagas; paginado para o autocompletar.
     fun skills(q: String?, page: Int, size: Int): List<JobSkillFacet> {
