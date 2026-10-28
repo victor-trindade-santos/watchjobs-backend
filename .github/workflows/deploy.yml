@@ -1,6 +1,7 @@
 name: Deploy
 
-# A cada push na main: testa, cria um branch do Neon (ponto de restauração), migra, publica e confere /health.
+# A cada push na main: testa, recria o branch de restauração do Neon, migra, publica a imagem no GHCR,
+# atualiza o Azure Container Apps e confere /health.
 on:
   push:
     branches: [main]
@@ -12,12 +13,13 @@ concurrency:
 
 permissions:
   contents: read
+  packages: write
   id-token: write
 
 env:
-  REGION: ${{ vars.GCP_REGION }}
-  SERVICE: watchjobs-api
-  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/watchjobs/api:${{ github.sha }}
+  RESOURCE_GROUP: watchjobs-rg
+  CONTAINER_APP: watchjobs-api
+  IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
 
 jobs:
   deploy:
@@ -48,11 +50,20 @@ jobs:
       - name: Testes e jar
         run: ./gradlew build --no-daemon
 
+      # Um branch só (pre-deploy), recriado a cada deploy: o plano gratuito do Neon limita o número de branches.
+      - name: Apagar o branch de restauração anterior
+        continue-on-error: true
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: pre-deploy
+          api_key: ${{ secrets.NEON_API_KEY }}
+
       - name: Branch do Neon antes da migration
         uses: neondatabase/create-branch-action@v5
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
-          branch_name: pre-deploy-${{ github.run_number }}
+          branch_name: pre-deploy
           api_key: ${{ secrets.NEON_API_KEY }}
 
       - name: Migrations (conexão direct, usuário dono)
@@ -71,33 +82,69 @@ jobs:
           MAIL_FROM: ${{ vars.MAIL_FROM }}
         run: java -jar build/libs/app.jar --spring.profiles.active=prod,migrate
 
-      - name: Autenticação no Google Cloud (Workload Identity Federation)
-        uses: google-github-actions/auth@v2
+      - name: Login no GHCR
+        uses: docker/login-action@v3
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
-      - uses: google-github-actions/setup-gcloud@v2
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Imagem
         run: |
-          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
 
-      - name: Publicar no Cloud Run
+      # OIDC com identidade gerenciada: nenhuma senha do Azure guardada no GitHub.
+      - name: Login no Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Os valores dos segredos ficam no próprio Container App (az containerapp secret set, uma vez só).
+      - name: Publicar no Azure Container Apps
+        env:
+          CORS_ORIGINS: ${{ vars.APP_CORS_ALLOWED_ORIGINS }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+          MAIL_HOST: ${{ vars.MAIL_HOST }}
+          MAIL_PORT: ${{ vars.MAIL_PORT }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          GITHUB_REPO: ${{ github.repository }}
         run: |
-          gcloud run deploy "$SERVICE" \
-            --image "$IMAGE" --region "$REGION" --platform managed \
-            --memory 512Mi --cpu 1 --cpu-boost --min-instances 0 --max-instances 2 \
-            --allow-unauthenticated \
-            --set-env-vars "SPRING_PROFILES_ACTIVE=prod,APP_CORS_ALLOWED_ORIGINS=${{ vars.APP_CORS_ALLOWED_ORIGINS }},PUBLIC_BASE_URL=${{ vars.PUBLIC_BASE_URL }},GITHUB_REPO=${{ github.repository }},MAIL_HOST=${{ vars.MAIL_HOST }},MAIL_PORT=${{ vars.MAIL_PORT }},MAIL_FROM=${{ vars.MAIL_FROM }}" \
-            --set-secrets "DB_URL=DB_URL:latest,DB_USERNAME=DB_USERNAME:latest,DB_PASSWORD=DB_PASSWORD:latest,JWT_SECRET=JWT_SECRET:latest,MAIL_USERNAME=MAIL_USERNAME:latest,MAIL_PASSWORD=MAIL_PASSWORD:latest,ADZUNA_APP_ID=ADZUNA_APP_ID:latest,ADZUNA_APP_KEY=ADZUNA_APP_KEY:latest,GITHUB_DISPATCH_TOKEN=GITHUB_DISPATCH_TOKEN:latest"
+          az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp update -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" \
+            --image "$IMAGE" \
+            --cpu 0.5 --memory 1.0Gi --min-replicas 1 --max-replicas 2 \
+            --set-env-vars \
+              "SPRING_PROFILES_ACTIVE=prod" \
+              "APP_CORS_ALLOWED_ORIGINS=$CORS_ORIGINS" \
+              "PUBLIC_BASE_URL=$PUBLIC_BASE_URL" \
+              "GITHUB_REPO=$GITHUB_REPO" \
+              "MAIL_HOST=$MAIL_HOST" \
+              "MAIL_PORT=$MAIL_PORT" \
+              "MAIL_FROM=$MAIL_FROM" \
+              "DB_URL=secretref:db-url" \
+              "DB_USERNAME=secretref:db-username" \
+              "DB_PASSWORD=secretref:db-password" \
+              "JWT_SECRET=secretref:jwt-secret" \
+              "MAIL_USERNAME=secretref:mail-username" \
+              "MAIL_PASSWORD=secretref:mail-password" \
+              "ADZUNA_APP_ID=secretref:adzuna-app-id" \
+              "ADZUNA_APP_KEY=secretref:adzuna-app-key" \
+              "GITHUB_DISPATCH_TOKEN=secretref:github-dispatch-token" \
+            --output none
+          # O app nasce com a imagem de exemplo na porta 80; a API escuta na 8080.
+          PORT_NOW=$(az containerapp show -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" --query properties.configuration.ingress.targetPort -o tsv)
+          if [ "$PORT_NOW" != "8080" ]; then
+            az containerapp ingress update -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" --target-port 8080 --output none
+          fi
 
       - name: Teste em /health
         run: |
-          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')
-          for i in 1 2 3 4 5 6; do
-            if curl -fsS "$URL/health"; then exit 0; fi
+          FQDN=$(az containerapp show -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" --query properties.configuration.ingress.fqdn -o tsv)
+          for i in $(seq 1 18); do
+            if curl -fsS "https://$FQDN/health"; then exit 0; fi
             sleep 10
           done
           exit 1
