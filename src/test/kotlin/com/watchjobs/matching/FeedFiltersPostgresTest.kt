@@ -96,7 +96,8 @@ class FeedFiltersPostgresTest : AuthSessionPostgresTestSupport() {
         val skill = jdbc.query("SELECT skill_id, skill_name FROM core.skill ORDER BY skill_id LIMIT 1") { rs, _ ->
             ExtractedSkill(rs.getLong(1), rs.getString(2), true)
         }.single()
-        store.insert(job("D", "MID", "REMOTE", null, listOf(skill)), null, null)
+        val inserted = store.insert(job("D", "MID", "REMOTE", null, listOf(skill)), null, null)
+        store.insertSkills(inserted, listOf(skill))
 
         val skills = objectMapper.readTree(
             mockMvc.get("/jobs/skills?q=${skill.skillName.take(3)}") { header("Authorization", bearer) }.andReturn().response.contentAsString
