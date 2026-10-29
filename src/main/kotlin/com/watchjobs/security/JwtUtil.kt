@@ -3,7 +3,6 @@ package com.watchjobs.security
 import com.watchjobs.entity.User
 import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.io.Decoders
 import io.jsonwebtoken.security.Keys
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
@@ -17,7 +16,7 @@ class JwtUtil(
     @Value("\${jwt.secret}") secret: String,
     @Value("\${jwt.expiration-minutes}") val expirationMinutes: Long
 ) {
-    private val key: SecretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret))
+    private val key: SecretKey = Keys.hmacShaKeyFor(JwtSecrets.decode(secret))
 
     fun generateToken(user: User): String {
         val now = OffsetDateTime.now(ZoneOffset.UTC).toInstant()

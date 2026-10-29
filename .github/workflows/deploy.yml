@@ -105,7 +105,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Os valores dos segredos ficam no próprio Container App (az containerapp secret set, uma vez só).
+      # db/mail/adzuna continuam só no Container App. jwt-secret é copiado do GitHub a cada deploy.
       - name: Publicar no Azure Container Apps
         env:
           CORS_ORIGINS: ${{ vars.APP_CORS_ALLOWED_ORIGINS }}
@@ -114,8 +114,14 @@ jobs:
           MAIL_PORT: ${{ vars.MAIL_PORT }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
           GITHUB_REPO: ${{ github.repository }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           az extension add --name containerapp --upgrade --only-show-errors
+          # O update abaixo só aponta JWT_SECRET=secretref:jwt-secret. Sem este set, o
+          # Container App continua com o segredo antigo (Base64URL, com '_') e o container cai.
+          az containerapp secret set -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" \
+            --secrets "jwt-secret=${JWT_SECRET}" \
+            --output none
           az containerapp update -n "$CONTAINER_APP" -g "$RESOURCE_GROUP" \
             --image "$IMAGE" \
             --cpu 0.5 --memory 1.0Gi --min-replicas 1 --max-replicas 2 \
