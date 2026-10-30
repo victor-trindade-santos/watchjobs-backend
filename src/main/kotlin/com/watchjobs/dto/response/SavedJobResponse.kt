@@ -5,7 +5,7 @@ import com.watchjobs.entity.enums.JobType
 import com.watchjobs.entity.enums.SavedJobStatus
 import com.watchjobs.entity.enums.WorkMode
 import com.watchjobs.jobs.JobSkillResponse
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
 
 data class SavedJobResponse(
     val id: Long,
@@ -23,8 +23,8 @@ data class SavedJobResponse(
     val salaryCurrency: String?,
     val status: SavedJobStatus,
     val notes: String?,
-    val savedAt: LocalDateTime,
-    val statusUpdatedAt: LocalDateTime,
+    val savedAt: OffsetDateTime,
+    val statusUpdatedAt: OffsetDateTime,
     // Conteúdo copiado da vaga ao salvar do corpus; só vem no GET /saved-jobs/{id}.
     val fullDescription: String? = null,
     val skills: List<JobSkillResponse> = emptyList(),

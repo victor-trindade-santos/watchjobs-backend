@@ -1,5 +1,6 @@
 package com.watchjobs.dto.request
 
+import com.fasterxml.jackson.annotation.JsonAlias
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.PastOrPresent
@@ -26,6 +27,7 @@ data class ApplicationRequest(
     )
     val status: String,
 
+    @JsonAlias("startDate")
     @field:NotNull(message = "Data da candidatura é obrigatória")
     @field:PastOrPresent(message = "Data da candidatura não pode ser futura")
     val applicationDate: LocalDate,

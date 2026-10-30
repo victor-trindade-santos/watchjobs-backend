@@ -5,12 +5,13 @@ import com.watchjobs.dto.response.SavedJobResponse
 import com.watchjobs.entity.SavedJob
 import com.watchjobs.entity.User
 import org.springframework.stereotype.Component
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 @Component
 class SavedJobMapper {
     fun toEntity(request: SavedJobRequest, user: User): SavedJob {
-        val now = LocalDateTime.now()
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
         return SavedJob(
             user = user,
             positionRole = request.positionRole.trim(),

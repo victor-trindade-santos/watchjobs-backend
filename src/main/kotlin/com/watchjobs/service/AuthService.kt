@@ -16,7 +16,8 @@ import org.springframework.security.core.AuthenticationException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import com.watchjobs.mapper.UserMapper
 import com.watchjobs.notification.NotificationService
 
@@ -60,13 +61,13 @@ class AuthService(
         }
         val user = userRepository.findByEmailIgnoreCase(email)
             ?: throw BadCredentialsException("E-mail ou senha inválidos")
-        user.lastLoginAt = LocalDateTime.now()
+        user.lastLoginAt = OffsetDateTime.now(ZoneOffset.UTC)
         userRepository.save(user)
         val refresh = refreshTokenService.issue(user)
         return authResponse(user, refresh.value)
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = [BadCredentialsException::class])
     fun refresh(value: String): AuthResponse {
         val refresh = refreshTokenService.rotate(value)
         return authResponse(refresh.token.user, refresh.value)
@@ -81,7 +82,7 @@ class AuthService(
         AuthResponse(
             token = jwtUtil.generateToken(user),
             refreshToken = refreshToken,
-            expiresAt = LocalDateTime.now().plusMinutes(jwtUtil.expirationMinutes),
+            expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(jwtUtil.expirationMinutes),
             user = userMapper.toResponse(user)
         )
 

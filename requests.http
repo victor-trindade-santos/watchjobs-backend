@@ -198,6 +198,51 @@ Content-Type: application/json
   "notes": "Salário revisado"
 }
 
+### ---------------- Contatos da vaga ----------------
+
+### 18b. Criar contato na vaga (201). Precisa de nome, e-mail, telefone ou link
+# @name createContact
+POST {{baseUrl}}/saved-jobs/{{jobId}}/contacts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "contactName": "Maria Souza",
+  "contactRole": "Recrutadora",
+  "email": "maria@acme.example",
+  "notes": "Falou comigo no LinkedIn"
+}
+
+###
+@contactId = {{createContact.response.body.id}}
+
+### 18c. Contato sem nenhum dado de identificação (400)
+POST {{baseUrl}}/saved-jobs/{{jobId}}/contacts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "contactRole": "Gestor"
+}
+
+### 18d. Listar contatos da vaga (200)
+GET {{baseUrl}}/saved-jobs/{{jobId}}/contacts
+Authorization: Bearer {{token}}
+
+### 18e. Atualizar contato (200)
+PUT {{baseUrl}}/saved-jobs/{{jobId}}/contacts/{{contactId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "contactName": "Maria Souza",
+  "phone": "+55 11 99999-0000"
+}
+
+### 18f. Excluir contato (204)
+DELETE {{baseUrl}}/saved-jobs/{{jobId}}/contacts/{{contactId}}
+Authorization: Bearer {{token}}
+
 ### ---------------- Application ----------------
 
 ### 19. Criar candidatura (201). A vaga passa para APPLIED
@@ -371,13 +416,7 @@ Content-Type: application/json
   "refreshToken": "{{signin.response.body.refreshToken}}"
 }
 
-### 40. Reutilizar o refresh antigo (401)
-POST {{baseUrl}}/auth/refresh
-Content-Type: application/json
-
-{
-  "refreshToken": "{{signin.response.body.refreshToken}}"
-}
+### 40. (ver 45b: reutilizar o refresh antigo derruba a sessao inteira, por isso fica no fim do bloco)
 
 ### 41. Usar o access renovado (200)
 GET {{baseUrl}}/me
@@ -415,6 +454,14 @@ Content-Type: application/json
 
 {
   "refreshToken": "{{refreshAna.response.body.refreshToken}}"
+}
+
+### 45b. Reutilizar o refresh antigo do login (401). Refresh ja usado que volta = cadeia copiada: a familia toda e revogada
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{signin.response.body.refreshToken}}"
 }
 
 ### ---------------- Recuperacao de senha e exclusao ----------------

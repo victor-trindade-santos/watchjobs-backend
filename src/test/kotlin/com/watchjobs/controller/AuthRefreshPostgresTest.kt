@@ -156,6 +156,30 @@ class AuthRefreshPostgresTest : AuthSessionPostgresTestSupport() {
     }
 
     @Test
+    fun `reusing a revoked refresh token revokes the whole family`() {
+        val login = signupAndLogin()
+        val renewed = objectMapper.readValue(
+            refresh(login.refreshToken).andExpect { status { isOk() } }.andReturn().response.contentAsString,
+            AuthResponse::class.java
+        )
+        val latest = objectMapper.readValue(
+            refresh(renewed.refreshToken).andExpect { status { isOk() } }.andReturn().response.contentAsString,
+            AuthResponse::class.java
+        )
+
+        refresh(login.refreshToken).andExpect { status { isUnauthorized() } }
+
+        refresh(latest.refreshToken).andExpect { status { isUnauthorized() } }
+        assertEquals(0L, jdbc.queryForObject(
+            "select count(*) from core.refresh_token where users_id = ? and revoked_at is null",
+            Long::class.java, login.user.id
+        ))
+        assertEquals(3L, jdbc.queryForObject(
+            "select count(*) from core.refresh_token where users_id = ?", Long::class.java, login.user.id
+        ))
+    }
+
+    @Test
     fun `concurrent refresh accepts the old token only once`() {
         val login = signupAndLogin()
         val start = CountDownLatch(1)
@@ -173,7 +197,8 @@ class AuthRefreshPostgresTest : AuthSessionPostgresTestSupport() {
             assertEquals(2L, jdbc.queryForObject(
                 "select count(*) from core.refresh_token where users_id = ?", Long::class.java, login.user.id
             ))
-            assertEquals(1L, jdbc.queryForObject(
+            // O pedido que perdeu a corrida usou um refresh já revogado: a família inteira cai (F1-03).
+            assertEquals(0L, jdbc.queryForObject(
                 "select count(*) from core.refresh_token where users_id = ? and revoked_at is null",
                 Long::class.java, login.user.id
             ))

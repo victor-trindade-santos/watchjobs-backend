@@ -7,7 +7,6 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
@@ -35,7 +34,7 @@ class User(
     var password: String = "",
 
     @field:Column(name = "last_login_at", columnDefinition = "timestamptz")
-    var lastLoginAt: LocalDateTime? = null,
+    var lastLoginAt: OffsetDateTime? = null,
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: OffsetDateTime = OffsetDateTime.now(ZoneOffset.UTC),

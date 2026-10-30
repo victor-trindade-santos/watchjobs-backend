@@ -107,6 +107,8 @@ Código em `src/main/kotlin/com/watchjobs/`:
 | GET | `/saved-jobs?q=` | Token | 200 (com `q`, busca por cargo ou empresa) |
 | GET, PUT, DELETE | `/saved-jobs/{id}` | Token | 200 / 200 / 204, ou 404 |
 | POST | `/saved-jobs` | Token | 201 / 400 |
+| GET, POST | `/saved-jobs/{id}/contacts` | Token | 200 / 201, 400 ou 404 (contatos do processo: recrutador, gestor, indicação) |
+| PUT, DELETE | `/saved-jobs/{id}/contacts/{contactId}` | Token | 200 / 204, 400 ou 404 |
 | GET | `/applications?q=` | Token | 200 (com `q`, busca em notas, feedback, cargo ou empresa) |
 | GET, PUT, DELETE | `/applications/{id}` | Token | 200 / 200 / 204, ou 404 |
 | POST | `/applications` | Token | 201 / 400 / 404 / 409 |
@@ -115,7 +117,7 @@ Código em `src/main/kotlin/com/watchjobs/`:
 | GET | `/jobs/{id}` | Token | 200 com a vaga, as skills e a descrição (só se a fonte permite guardar) / 404 |
 | POST | `/jobs/{id}/save` | Token | 201 com a vaga salva / 404 / 409 se já salva |
 
-Rotas protegidas exigem o cabeçalho `Authorization: Bearer <token>`. O access token vale 15 minutos e o refresh vale 30 dias. A renovação revoga o refresh antigo e entrega um substituto da mesma família. O logout revoga apenas o refresh informado, pertencente ao usuário autenticado; o access já emitido continua válido até expirar, salvo se a senha for redefinida.
+Rotas protegidas exigem o cabeçalho `Authorization: Bearer <token>`. O access token vale 15 minutos e o refresh vale 30 dias. A renovação revoga o refresh antigo e entrega um substituto da mesma família. Se um refresh já usado voltar (sinal de que a cadeia foi copiada), a família inteira é revogada e o pedido responde 401: quem tinha a sessão precisa entrar de novo. Datas de sessão e de vaga salva saem em UTC com offset (ex.: `2026-05-01T12:00:00Z`). O logout revoga apenas o refresh informado, pertencente ao usuário autenticado; o access já emitido continua válido até expirar, salvo se a senha for redefinida.
 
 `POST /password/forgot` responde sempre **202**. Se a conta existir e ainda houver cota (3 códigos por e-mail por hora), o código de 6 dígitos chega por e-mail e vale 15 minutos. `POST /password/reset` troca a senha, grava `password_changed_at` e revoga todos os refresh tokens; access tokens emitidos antes da troca passam a receber 401. `DELETE /me` exige `{ "password": "..." }` e apaga o usuário com as linhas que dependem dele.
 

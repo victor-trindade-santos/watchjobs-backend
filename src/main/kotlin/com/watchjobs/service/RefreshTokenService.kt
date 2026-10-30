@@ -29,10 +29,16 @@ class RefreshTokenService(
     fun issue(user: User): IssuedRefreshToken =
         create(user, UUID.randomUUID(), OffsetDateTime.now(ZoneOffset.UTC))
 
-    @Transactional
+    // noRollbackFor: a revogação da família precisa ser gravada mesmo quando o pedido responde 401.
+    @Transactional(noRollbackFor = [BadCredentialsException::class])
     fun rotate(value: String): IssuedRefreshToken {
         val token = repository.findByTokenHash(hash(value)) ?: invalidToken()
         val now = OffsetDateTime.now(ZoneOffset.UTC)
+        if (token.revokedAt != null) {
+            // Um refresh já usado voltou: alguém copiou a cadeia. Derruba a família inteira.
+            repository.revokeByFamilyId(token.familyId, now)
+            invalidToken()
+        }
         validateActive(token, now)
         val replacement = create(token.user, token.familyId, now, token.deviceLabel)
         token.revokedAt = now

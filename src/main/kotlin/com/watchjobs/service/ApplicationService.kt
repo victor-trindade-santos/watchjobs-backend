@@ -19,7 +19,8 @@ import com.watchjobs.repository.SavedJobRepository
 import com.watchjobs.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 @Service
 class ApplicationService(
@@ -101,7 +102,7 @@ class ApplicationService(
         events.record(savedJobId, userId, EventType.APPLICATION_DELETED, previousStatus.name, SavedJobStatus.SAVED.name, application.id)
         applicationRepository.delete(application)
         savedJob.status = SavedJobStatus.SAVED
-        savedJob.statusUpdatedAt = LocalDateTime.now()
+        savedJob.statusUpdatedAt = OffsetDateTime.now(ZoneOffset.UTC)
         savedJobRepository.save(savedJob)
         moveCardIfColumnChanged(savedJobId, userId, previousStatus, SavedJobStatus.SAVED)
     }
@@ -122,7 +123,7 @@ class ApplicationService(
         val newStatus = SavedJobStatus.valueOf(status)
         if (savedJob.status != newStatus) {
             savedJob.status = newStatus
-            savedJob.statusUpdatedAt = LocalDateTime.now()
+            savedJob.statusUpdatedAt = OffsetDateTime.now(ZoneOffset.UTC)
             savedJobRepository.save(savedJob)
         }
     }

@@ -19,7 +19,8 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 @Service
 class SavedJobService(
@@ -96,7 +97,7 @@ class SavedJobService(
         savedJobMapper.updateEntity(savedJob, request)
 
         if (statusChanged) {
-            savedJob.statusUpdatedAt = LocalDateTime.now()
+            savedJob.statusUpdatedAt = OffsetDateTime.now(ZoneOffset.UTC)
             application?.status = request.status.name
             events.record(id, userId, EventType.STATUS_CHANGED, previousStatus.name, request.status.name, application?.id)
             if (BoardColumnMapper.columnOf(previousStatus) != BoardColumnMapper.columnOf(request.status)) {

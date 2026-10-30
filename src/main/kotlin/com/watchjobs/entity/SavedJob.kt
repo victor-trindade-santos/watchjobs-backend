@@ -15,7 +15,8 @@ import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 @Entity
 @Table(name = "saved_job", schema = "core")
@@ -76,8 +77,8 @@ class SavedJob(
     var notes: String? = null,
 
     @field:Column(name = "saved_at", nullable = false, columnDefinition = "timestamptz")
-    var savedAt: LocalDateTime = LocalDateTime.now(),
+    var savedAt: OffsetDateTime = OffsetDateTime.now(ZoneOffset.UTC),
 
     @field:Column(name = "status_updated_at", nullable = false, columnDefinition = "timestamptz")
-    var statusUpdatedAt: LocalDateTime = LocalDateTime.now()
+    var statusUpdatedAt: OffsetDateTime = OffsetDateTime.now(ZoneOffset.UTC)
 )
