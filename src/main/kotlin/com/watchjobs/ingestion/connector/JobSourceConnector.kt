@@ -16,7 +16,10 @@ data class RawPosting(
     val salaryMax: Double? = null,
     val salaryCurrency: String? = null,
     val salaryPeriod: String? = null,
-    val departments: List<String> = emptyList()
+    val departments: List<String> = emptyList(),
+    // Dados estruturados da fonte (ATS): valem mais que a dedução pelo texto.
+    val workMode: String? = null,
+    val jobType: String? = null
 )
 
 // Um alvo da coleta: uma empresa (ATS, scraping) ou um segmento (agregador).
@@ -30,7 +33,8 @@ data class FetchTarget(
     val keywords: String? = null,
     val roleFamily: String? = null,
     val countryCode: String? = null,
-    val workMode: String? = null
+    val workMode: String? = null,
+    val careersUrl: String? = null
 ) {
     val label: String
         get() = externalKey ?: keywords ?: roleFamily ?: "alvo"
@@ -74,4 +78,8 @@ interface QueryableConnector : JobSourceConnector {
 
 fun interface HttpGateway {
     fun get(uri: URI, headers: Map<String, String>): String
+
+    // POST com corpo JSON (Jooble). Quem não precisa não implementa.
+    fun post(uri: URI, headers: Map<String, String>, body: String): String =
+        throw UnsupportedOperationException("POST não suportado por este gateway")
 }

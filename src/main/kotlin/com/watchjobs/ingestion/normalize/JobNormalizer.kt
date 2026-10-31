@@ -55,7 +55,7 @@ class JobNormalizer(
     fun normalize(raw: RawPosting, context: NormalizeContext): NormalizedJob? {
         val title = HtmlText.toText(raw.title)?.take(255)
         val organization = (context.organizationName ?: raw.organizationName)?.trim()?.take(150)
-        val url = raw.url?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        val url = raw.url?.trim()?.takeIf(::isValidUrl)
         if (raw.externalId.isBlank() || title.isNullOrBlank() || organization.isNullOrBlank() || url == null) return null
 
         val description = HtmlText.toText(raw.description)
@@ -63,7 +63,8 @@ class JobNormalizer(
         val classification = classifier.classify(
             ClassificationInput(title = title, description = description, location = raw.locationText)
         )
-        val workMode = classification.workMode?.value ?: if (location.remote) "REMOTE" else null
+        val workMode = raw.workMode ?: classification.workMode?.value ?: if (location.remote) "REMOTE" else null
+        val jobType = raw.jobType ?: classification.jobType?.value
         val salary = SalaryNormalizer.normalize(raw.salaryMin, raw.salaryMax, raw.salaryCurrency, raw.salaryPeriod)
         val extracted = skills.extract(listOfNotNull(title, description).joinToString(". "))
 
@@ -80,7 +81,7 @@ class JobNormalizer(
             rawLocation = raw.locationText?.trim()?.ifEmpty { null },
             workMode = workMode,
             experienceLevel = classification.seniority?.value,
-            jobType = classification.jobType?.value,
+            jobType = jobType,
             roleFamily = classification.roleFamily?.value,
             classificationConfidence = classification.roleFamily?.confidence,
             rulesVersion = classification.rulesVersion,
@@ -94,7 +95,7 @@ class JobNormalizer(
             postedAt = raw.postedAt,
             contentHash = Hashing.sha256(
                 title, organization, raw.locationText, workMode, classification.seniority?.value,
-                classification.jobType?.value, salary?.min, salary?.max, salary?.currency, description, url,
+                jobType, salary?.min, salary?.max, salary?.currency, description, url,
                 extracted.joinToString(",") { "${it.skillId}:${it.required}" }
             ),
             fingerprint = Hashing.sha256(
@@ -103,5 +104,13 @@ class JobNormalizer(
                 TextNormalizer.forMatching(location.city)
             )
         )
+    }
+
+    companion object {
+        // Só links http(s) absolutos, com host e sem espaços: o usuário clica neles para se candidatar.
+        fun isValidUrl(value: String): Boolean {
+            if (!(value.startsWith("http://") || value.startsWith("https://")) || value.length > 2048 || value.any { it.isWhitespace() }) return false
+            return runCatching { java.net.URI(value).let { it.host != null && it.isAbsolute } }.getOrDefault(false)
+        }
     }
 }

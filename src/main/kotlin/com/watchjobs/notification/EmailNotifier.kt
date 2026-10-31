@@ -58,7 +58,8 @@ class EmailNotifier(
               JOIN core.notification_preference p ON p.users_id = n.users_id
               JOIN core.users u ON u.users_id = n.users_id
              WHERE p.email_enabled AND $frequencyFilter
-               AND n.emailed_at IS NULL AND n.notification_type IN ('NEW_MATCHES', 'SEARCH_COMPLETED')
+               AND n.emailed_at IS NULL
+               AND n.notification_type IN ('NEW_MATCHES', 'SEARCH_COMPLETED', 'INTERVIEW_REMINDER', 'STALE_APPLICATION', 'SAVED_JOB_ALERT')
                AND n.created_at >= now() - interval '1 day'
              ORDER BY n.users_id, n.created_at
             """

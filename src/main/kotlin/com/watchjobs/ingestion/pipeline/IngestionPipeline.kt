@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
+import java.time.OffsetDateTime
 
 data class RoundOptions(
     val sourceCode: String? = null,
@@ -130,19 +131,25 @@ class IngestionPipeline(
                 log.info("Fonte {}: nenhum alvo vencido", source.code)
                 continue
             }
+            // Circuito aberto e vencido: só um alvo de teste (HALF_OPEN) decide se a fonte volta.
+            val probing = CircuitBreaker.beforeAttempt(source.circuit, OffsetDateTime.now()).state == CircuitState.HALF_OPEN
+            if (probing) {
+                targets.markHalfOpen(source.id)
+                log.info("Fonte {}: circuito meio aberto, uma coleta de teste", source.code)
+            }
             val context = try {
                 contextOf(source)
             } catch (ex: IllegalStateException) {
                 log.error("Fonte {}: {}", source.code, ex.message)
                 attempted++
                 failed++
-                targets.sourceFailed(source.id)
+                targets.sourceFailed(source)
                 continue
             }
 
             attempted++
             val sourceResults = mutableListOf<TargetResult>()
-            for (target in sourceTargets) {
+            for (target in if (probing) sourceTargets.take(1) else sourceTargets) {
                 if (Instant.now().isAfter(deadline)) {
                     budgetExceeded = true
                     break
@@ -158,7 +165,7 @@ class IngestionPipeline(
             results += sourceResults
             if (sourceResults.isNotEmpty() && sourceResults.all { it.status == RunStatus.FAILED }) {
                 failed++
-                targets.sourceFailed(source.id)
+                targets.sourceFailed(source)
             } else if (sourceResults.isNotEmpty()) {
                 targets.sourceSucceeded(source.id)
             }

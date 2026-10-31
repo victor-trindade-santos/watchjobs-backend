@@ -3,6 +3,7 @@ package com.watchjobs.config
 import com.watchjobs.security.AppUserDetailsService
 import com.watchjobs.security.JwtAuthenticationFilter
 import com.watchjobs.security.JwtUtil
+import com.watchjobs.security.ProfileSetupGuardFilter
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.context.annotation.Bean
@@ -53,6 +54,16 @@ class SecurityConfig(
     }
 
     @Bean
+    fun profileSetupGuardFilter(@Value("\${app.profile-setup.enforce:false}") enforce: Boolean) = ProfileSetupGuardFilter(enforce)
+
+    @Bean
+    fun profileSetupGuardRegistration(filter: ProfileSetupGuardFilter): FilterRegistrationBean<ProfileSetupGuardFilter> {
+        val registration = FilterRegistrationBean(filter)
+        registration.isEnabled = false
+        return registration
+    }
+
+    @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val config = CorsConfiguration()
         config.allowedOrigins = allowedOrigins.split(",").map { it.trim() }
@@ -66,7 +77,11 @@ class SecurityConfig(
     // Nos perfis ingestion e migrate não há servidor web, então não existe HttpSecurity.
     @Bean
     @Profile("!ingestion & !migrate")
-    fun securityFilterChain(http: HttpSecurity, jwtAuthenticationFilter: JwtAuthenticationFilter): SecurityFilterChain {
+    fun securityFilterChain(
+        http: HttpSecurity,
+        jwtAuthenticationFilter: JwtAuthenticationFilter,
+        profileSetupGuardFilter: ProfileSetupGuardFilter
+    ): SecurityFilterChain {
         http
             .csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
@@ -76,6 +91,8 @@ class SecurityConfig(
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/signin", "/signup", "/auth/refresh").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/password/forgot", "/password/reset").permitAll()
+                // Lotes de parceiro: autenticados pela chave do parceiro (X-Partner-Key), validada no serviço.
+                it.requestMatchers(HttpMethod.POST, "/partner-feed/*/batches").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/health", "/notifications/unsubscribe").permitAll()
                 it.requestMatchers(
                     "/swagger-ui.html",
@@ -96,6 +113,7 @@ class SecurityConfig(
                 }
             }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterAfter(profileSetupGuardFilter, JwtAuthenticationFilter::class.java)
         return http.build()    
     }
 }        

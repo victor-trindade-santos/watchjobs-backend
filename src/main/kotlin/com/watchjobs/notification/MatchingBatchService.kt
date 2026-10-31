@@ -1,5 +1,6 @@
 package com.watchjobs.notification
 
+import com.watchjobs.ingestion.store.JobGroupStore
 import com.watchjobs.matching.FeedService
 import org.slf4j.LoggerFactory
 import org.springframework.jdbc.core.simple.JdbcClient
@@ -64,6 +65,7 @@ class MatchingBatchService(
               JOIN discovery.discovered_job j ON j.discovered_job_id = m.discovered_job_id
              WHERE m.users_id = :userId AND m.score_total >= :minScore
                AND j.corpus_status = 'ACTIVE' AND j.expires_at > now()
+               ${JobGroupStore.CANONICAL_ONLY}
                AND j.discovered_at >= now() - interval '7 days'
                AND NOT EXISTS (SELECT 1 FROM discovery.match_notification n
                                 WHERE n.users_id = m.users_id AND n.discovered_job_id = m.discovered_job_id)

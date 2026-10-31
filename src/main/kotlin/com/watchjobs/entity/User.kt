@@ -43,5 +43,9 @@ class User(
     var emailVerifiedAt: OffsetDateTime? = null,
 
     @Column(name = "password_changed_at")
-    var passwordChangedAt: OffsetDateTime? = null
+    var passwordChangedAt: OffsetDateTime? = null,
+
+    // Só leitura no JPA: quem grava é o ProfileSetupService (SQL), para um save do usuário nunca apagar a conclusão.
+    @Column(name = "profile_setup_completed_at", insertable = false, updatable = false)
+    var profileSetupCompletedAt: OffsetDateTime? = null
 )

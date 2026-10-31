@@ -1,6 +1,7 @@
 package com.watchjobs.matching
 
 import com.watchjobs.exception.NotFoundException
+import com.watchjobs.ingestion.store.JobGroupStore
 import com.watchjobs.jobs.JobCorpusQueries
 import com.watchjobs.jobs.JobCorpusService
 import org.springframework.jdbc.core.simple.JdbcClient
@@ -210,6 +211,6 @@ class FeedService(
               AND NOT EXISTS (SELECT 1 FROM core.usersjobinteraction i
                                WHERE i.users_id = :userId AND i.discovered_job_id = j.discovered_job_id
                                  AND i.interaction_type IN ('DISMISSED', 'HIDDEN'))
-        """
+        """ + JobGroupStore.CANONICAL_ONLY
     }
 }

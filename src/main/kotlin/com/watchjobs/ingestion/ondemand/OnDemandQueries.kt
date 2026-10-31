@@ -1,6 +1,7 @@
 package com.watchjobs.ingestion.ondemand
 
 import com.watchjobs.catalog.TextNormalizer
+import com.watchjobs.ingestion.store.JobGroupStore
 import com.watchjobs.jobs.JobCorpusQueries
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
@@ -95,7 +96,7 @@ class OnDemandQueries(private val jdbc: JdbcClient) {
     fun matchingIds(q: String, location: String?, workMode: String?, seenSince: OffsetDateTime? = null, limit: Int = 100): List<Long> {
         val tokens = TextNormalizer.collapseSpaces(q).split(' ').filter { it.length >= 2 }.take(6)
         if (tokens.isEmpty()) return emptyList()
-        val where = StringBuilder("WHERE j.corpus_status = 'ACTIVE' AND j.expires_at > now()")
+        val where = StringBuilder("WHERE j.corpus_status = 'ACTIVE' AND j.expires_at > now() " + JobGroupStore.CANONICAL_ONLY)
         val params = mutableMapOf<String, Any?>("limit" to limit)
         tokens.forEachIndexed { i, token ->
             where.append(

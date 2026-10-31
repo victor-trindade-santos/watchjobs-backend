@@ -6,6 +6,8 @@ import com.watchjobs.ingestion.pipeline.RoundOptions
 import com.watchjobs.ingestion.pipeline.RoundSummary
 import com.watchjobs.notification.EmailNotifier
 import com.watchjobs.notification.MatchingBatchService
+import com.watchjobs.notification.PushNotifier
+import com.watchjobs.notification.ReminderService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
@@ -19,7 +21,9 @@ class MotorRound(
     private val onDemand: OnDemandTaskProcessor,
     private val pipeline: IngestionPipeline,
     private val batch: MatchingBatchService,
-    private val email: EmailNotifier
+    private val email: EmailNotifier,
+    private val reminders: ReminderService,
+    private val push: PushNotifier
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -30,7 +34,9 @@ class MotorRound(
             .getOrDefault(emptyList())
         val summary = pipeline.runRound(options)
         runCatching { batch.run(roundKey) }.onFailure { log.error("Matching em lote falhou: {}", it.message) }
+        runCatching { reminders.run() }.onFailure { log.error("Lembretes falharam: {}", it.message) }
         runCatching { email.run() }.onFailure { log.error("Envio de e-mails falhou: {}", it.message) }
+        runCatching { push.run() }.onFailure { log.error("Envio de push falhou: {}", it.message) }
         return summary.copy(targets = onDemandResults + summary.targets)
     }
 }

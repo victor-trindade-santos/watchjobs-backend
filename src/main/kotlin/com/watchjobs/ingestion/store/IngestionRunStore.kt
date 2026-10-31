@@ -44,6 +44,21 @@ class IngestionRunStore(private val jdbc: JdbcClient) {
             .query(Long::class.java)
             .single()
 
+    // Lote de parceiro: o checksum é único por fonte (índice uq_ingestion_run_payload_checksum), lote repetido falha aqui.
+    fun openBatch(sourceId: Long, batchReference: String?, checksum: String): Long =
+        jdbc.sql(
+            """
+            INSERT INTO discovery.ingestion_run (source_id, trigger_type, status, batch_reference, payload_checksum)
+            VALUES (:sourceId, 'PARTNER_UPLOAD', 'RUNNING', :reference, :checksum)
+            RETURNING ingestion_run_id
+            """
+        )
+            .param("sourceId", sourceId)
+            .param("reference", batchReference)
+            .param("checksum", checksum)
+            .query(Long::class.java)
+            .single()
+
     fun close(runId: Long, status: RunStatus, counters: RunCounters, fullSnapshot: Boolean, error: String? = null) {
         jdbc.sql(
             """

@@ -3,6 +3,8 @@ package com.watchjobs.notification
 import com.watchjobs.exception.NotFoundException
 import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -10,7 +12,9 @@ import tools.jackson.databind.ObjectMapper
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 
-enum class NotificationType { NEW_MATCHES, SEARCH_COMPLETED, SYSTEM }
+enum class NotificationType {
+    NEW_MATCHES, SEARCH_COMPLETED, SYSTEM, INTERVIEW_REMINDER, STALE_APPLICATION, SAVED_JOB_ALERT
+}
 
 enum class EmailFrequency { IMMEDIATE, DAILY }
 
@@ -32,7 +36,8 @@ data class NotificationPreferenceResponse(
     val minScore: BigDecimal,
     val inAppEnabled: Boolean,
     val emailEnabled: Boolean,
-    val emailFrequency: EmailFrequency
+    val emailFrequency: EmailFrequency,
+    val pushEnabled: Boolean = true
 )
 
 data class NotificationPreferenceRequest(
@@ -41,7 +46,15 @@ data class NotificationPreferenceRequest(
     val minScore: BigDecimal? = null,
     val inAppEnabled: Boolean? = null,
     val emailEnabled: Boolean? = null,
-    val emailFrequency: EmailFrequency? = null
+    val emailFrequency: EmailFrequency? = null,
+    val pushEnabled: Boolean? = null
+)
+
+data class PushDeviceRequest(
+    @field:NotBlank(message = "Token é obrigatório")
+    @field:Size(max = 512, message = "Token deve ter no máximo 512 caracteres")
+    val token: String = "",
+    val platform: String = "ANDROID"
 )
 
 // Avisos do sininho e preferências de notificação (3.7.2).
@@ -130,13 +143,14 @@ class NotificationService(
     fun preference(userId: Int): NotificationPreferenceResponse {
         createDefaultPreference(userId)
         return jdbc.sql(
-            "SELECT min_score, in_app_enabled, email_enabled, email_frequency FROM core.notification_preference WHERE users_id = :userId"
+            "SELECT min_score, in_app_enabled, email_enabled, email_frequency, push_enabled FROM core.notification_preference WHERE users_id = :userId"
         ).param("userId", userId).query { rs, _ ->
             NotificationPreferenceResponse(
                 minScore = rs.getBigDecimal("min_score"),
                 inAppEnabled = rs.getBoolean("in_app_enabled"),
                 emailEnabled = rs.getBoolean("email_enabled"),
-                emailFrequency = EmailFrequency.valueOf(rs.getString("email_frequency"))
+                emailFrequency = EmailFrequency.valueOf(rs.getString("email_frequency")),
+                pushEnabled = rs.getBoolean("push_enabled")
             )
         }.single()
     }
@@ -150,7 +164,8 @@ class NotificationService(
                SET min_score = COALESCE(:minScore, min_score),
                    in_app_enabled = COALESCE(CAST(:inApp AS boolean), in_app_enabled),
                    email_enabled = COALESCE(CAST(:email AS boolean), email_enabled),
-                   email_frequency = COALESCE(CAST(:frequency AS text), email_frequency)
+                   email_frequency = COALESCE(CAST(:frequency AS text), email_frequency),
+                   push_enabled = COALESCE(CAST(:push AS boolean), push_enabled)
              WHERE users_id = :userId
             """
         )
@@ -158,9 +173,27 @@ class NotificationService(
             .param("inApp", request.inAppEnabled)
             .param("email", request.emailEnabled)
             .param("frequency", request.emailFrequency?.name)
+            .param("push", request.pushEnabled)
             .param("userId", userId)
             .update()
         return preference(userId)
+    }
+
+    // O token muda de dono se outro usuário entrar no mesmo aparelho.
+    @Transactional
+    fun registerDevice(userId: Int, request: PushDeviceRequest) {
+        jdbc.sql(
+            """
+            INSERT INTO core.push_device (users_id, token, platform) VALUES (:userId, :token, :platform)
+            ON CONFLICT (token) DO UPDATE SET users_id = EXCLUDED.users_id, last_seen_at = now()
+            """
+        ).param("userId", userId).param("token", request.token.trim()).param("platform", "ANDROID").update()
+    }
+
+    @Transactional
+    fun unregisterDevice(userId: Int, token: String) {
+        jdbc.sql("DELETE FROM core.push_device WHERE users_id = :userId AND token = :token")
+            .param("userId", userId).param("token", token.trim()).update()
     }
 
     @Transactional

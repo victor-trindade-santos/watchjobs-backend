@@ -156,7 +156,7 @@ object ResumeParser {
                 title = h.title.take(150),
                 company = h.company.take(150),
                 location = location,
-                description = body.joinToString("\n") { unbullet(it) }.trim().take(3000).ifBlank { null },
+                description = paragraphs(body).take(MAX_TEXT).ifBlank { null },
                 startDate = h.range.start,
                 endDate = h.range.end
             )
@@ -251,7 +251,25 @@ object ResumeParser {
     }
 
     private fun summary(lines: List<String>): String? =
-        lines.joinToString(" ") { unbullet(it) }.trim().take(500).ifBlank { null }
+        paragraphs(lines).take(MAX_TEXT).ifBlank { null }
+
+    // Junta as linhas que o PDF quebrou no meio da frase; mantém parágrafos e tópicos. Nada é cortado.
+    private fun paragraphs(lines: List<String>): String = buildString {
+        lines.forEach { raw ->
+            val bullet = BULLET.containsMatchIn(raw)
+            val line = unbullet(raw)
+            if (line.isEmpty()) return@forEach
+            when {
+                isEmpty() -> append(if (bullet) "• $line" else line)
+                bullet -> append("\n• ").append(line)
+                last() in SENTENCE_END -> append('\n').append(line)
+                else -> append(' ').append(line)
+            }
+        }
+    }.trim()
+
+    private const val MAX_TEXT = 10000
+    private const val SENTENCE_END = ".!?:;"
 
     private fun location(lines: List<String>): String? = lines.take(30).firstOrNull { LOCATION_LINE.matches(it) }
 }

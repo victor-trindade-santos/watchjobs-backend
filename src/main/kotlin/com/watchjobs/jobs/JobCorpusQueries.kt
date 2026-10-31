@@ -3,6 +3,7 @@ package com.watchjobs.jobs
 import com.watchjobs.entity.enums.ExperienceLevel
 import com.watchjobs.entity.enums.JobType
 import com.watchjobs.entity.enums.WorkMode
+import com.watchjobs.ingestion.store.JobGroupStore
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
@@ -26,7 +27,7 @@ data class CorpusJobRow(
 class JobCorpusQueries(private val jdbc: JdbcClient) {
 
     fun search(userId: Int, filter: JobSearchFilter): Pair<List<CorpusJobRow>, Long> {
-        val where = StringBuilder("WHERE j.corpus_status = 'ACTIVE' AND j.expires_at > now()")
+        val where = StringBuilder("WHERE j.corpus_status = 'ACTIVE' AND j.expires_at > now() " + JobGroupStore.CANONICAL_ONLY)
         val params = mutableMapOf<String, Any?>()
         filter.q?.trim()?.takeIf { it.isNotEmpty() }?.let {
             where.append(" AND (j.title ILIKE :q ESCAPE '\\' OR j.organization_name ILIKE :q ESCAPE '\\')")

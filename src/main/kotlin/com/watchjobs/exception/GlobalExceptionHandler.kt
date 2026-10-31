@@ -60,6 +60,11 @@ class GlobalExceptionHandler {
     fun handleTooManyRequests(ex: TooManyRequestsException) =
         ErrorResponse("TOO_MANY_REQUESTS", ex.message ?: "Muitas requisições", null)
 
+    @ExceptionHandler(ServiceUnavailableException::class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    fun handleUnavailable(ex: ServiceUnavailableException) =
+        ErrorResponse("SERVICE_UNAVAILABLE", ex.message ?: "Serviço indisponível", null)
+
     @ExceptionHandler(MaxUploadSizeExceededException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleUploadSize(ex: MaxUploadSizeExceededException) =

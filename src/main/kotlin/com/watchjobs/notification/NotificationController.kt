@@ -53,6 +53,25 @@ class NotificationController(
         @Valid @RequestBody request: NotificationPreferenceRequest
     ): NotificationPreferenceResponse = service.updatePreference(principal.id, request)
 
+    // Token FCM do aparelho Android (push).
+    @PostMapping("/devices")
+    fun registerDevice(
+        @AuthenticationPrincipal principal: AppUserDetails,
+        @Valid @RequestBody request: PushDeviceRequest
+    ): ResponseEntity<Void> {
+        service.registerDevice(principal.id, request)
+        return ResponseEntity.noContent().build()
+    }
+
+    @PostMapping("/devices/remove")
+    fun unregisterDevice(
+        @AuthenticationPrincipal principal: AppUserDetails,
+        @Valid @RequestBody request: PushDeviceRequest
+    ): ResponseEntity<Void> {
+        service.unregisterDevice(principal.id, request.token)
+        return ResponseEntity.noContent().build()
+    }
+
     // Link do e-mail (público): desliga os e-mails sem pedir login.
     @GetMapping("/unsubscribe", produces = [MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8"])
     fun unsubscribe(@RequestParam token: String): ResponseEntity<String> {

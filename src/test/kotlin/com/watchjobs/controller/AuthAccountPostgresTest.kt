@@ -179,6 +179,13 @@ class AuthAccountPostgresTest : AuthSessionPostgresTestSupport() {
             "insert into core.application_event (saved_job_id, users_id, event_type) values (?, ?, 'SAVED')",
             savedJobId, usersId
         )
+        jdbc.update(
+            """
+            insert into core.generated_document (users_id, saved_job_id, doc_type, title)
+            values (?, ?, 'RESUME', 'Currículo de teste')
+            """.trimIndent(),
+            usersId, savedJobId
+        )
         val preferenceId = jdbc.queryForObject(
             """
             insert into core.userpreference (preferred_work_mode, preferred_experience_level, preferred_roles, users_id)
@@ -264,6 +271,32 @@ class AuthAccountPostgresTest : AuthSessionPostgresTestSupport() {
             values (?, 'SYSTEM', 'Aviso de teste', 'Conteúdo de teste', ?)
             """.trimIndent(),
             usersId, "account-deletion-$suffix"
+        )
+        jdbc.update(
+            "insert into core.push_device (users_id, token) values (?, ?)",
+            usersId, "push-token-$suffix"
+        )
+        jdbc.update(
+            """
+            insert into discovery.search_request (users_id, query_text, query_key)
+            values (?, 'Kotlin', repeat('b', 64))
+            """.trimIndent(),
+            usersId
+        )
+        jdbc.update(
+            """
+            insert into discovery.match_notification (users_id, discovered_job_id, score_total)
+            values (?, 1, 80)
+            """.trimIndent(),
+            usersId
+        )
+        jdbc.update(
+            """
+            insert into discovery.user_job_match
+                (users_id, discovered_job_id, profile_version, score_total, expires_at)
+            values (?, 1, 1, 80, now() + interval '1 day')
+            """.trimIndent(),
+            usersId
         )
         jdbc.update(
             """

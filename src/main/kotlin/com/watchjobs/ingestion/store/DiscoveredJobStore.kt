@@ -47,18 +47,23 @@ class DiscoveredJobStore(
             .query { rs, _ -> CorpusKey(rs.getLong(1), rs.getObject(2, OffsetDateTime::class.java)) }
             .single()
 
+    // Atualização sem perder informação: se a fonte deixou de mandar salário, descrição ou data, fica o que já havia.
     fun update(key: CorpusKey, job: NormalizedJob, organizationId: Long?, locationId: Long?): Boolean =
         jdbc.sql(
             """
             UPDATE discovery.discovered_job
-               SET organization_id = :organizationId, location_id = :locationId, title = :title,
-                   organization_name = :organizationName, job_url = :jobUrl, work_mode = :workMode,
-                   experience_level = :experienceLevel, job_type = :jobType, salary_min = :salaryMin,
-                   salary_max = :salaryMax, salary_currency = :salaryCurrency, salary_period = :salaryPeriod,
-                   full_description = :fullDescription, posted_at = :postedAt, fingerprint = :fingerprint,
+               SET organization_id = COALESCE(:organizationId, organization_id), location_id = COALESCE(:locationId, location_id),
+                   title = :title, organization_name = :organizationName, job_url = :jobUrl, work_mode = :workMode,
+                   experience_level = :experienceLevel, job_type = :jobType,
+                   salary_min = CASE WHEN CAST(:salaryMin AS numeric) IS NULL AND CAST(:salaryMax AS numeric) IS NULL THEN salary_min ELSE :salaryMin END,
+                   salary_max = CASE WHEN CAST(:salaryMin AS numeric) IS NULL AND CAST(:salaryMax AS numeric) IS NULL THEN salary_max ELSE :salaryMax END,
+                   salary_currency = CASE WHEN CAST(:salaryMin AS numeric) IS NULL AND CAST(:salaryMax AS numeric) IS NULL THEN salary_currency ELSE :salaryCurrency END,
+                   salary_period = CASE WHEN CAST(:salaryMin AS numeric) IS NULL AND CAST(:salaryMax AS numeric) IS NULL THEN salary_period ELSE :salaryPeriod END,
+                   full_description = COALESCE(:fullDescription, full_description), posted_at = COALESCE(:postedAt, posted_at),
+                   fingerprint = :fingerprint,
                    content_hash = :contentHash, last_seen_at = now(), source_company_id = :sourceCompanyId,
                    role_family = :roleFamily, country_code = :countryCode, raw_location = :rawLocation,
-                   description_snippet = :snippet, classification_source = 'RULES',
+                   description_snippet = COALESCE(:snippet, description_snippet), classification_source = 'RULES',
                    classification_confidence = :confidence, rules_version = :rulesVersion,
                    corpus_status = 'ACTIVE'
              WHERE discovered_job_id = :id AND discovered_at = :discoveredAt

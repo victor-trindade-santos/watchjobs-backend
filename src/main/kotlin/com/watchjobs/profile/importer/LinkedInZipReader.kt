@@ -143,8 +143,9 @@ class LinkedInZipReader(
             LinkedInLanguage(name, proficiency, proficiencyLevel(proficiency))
         }
 
+    // O resumo ("Summary") é o texto completo do perfil; o título ("Headline") só entra quando não há resumo.
     private fun profile(csv: String): LinkedInProfile? =
-        table(csv, HEADLINE + GEO).firstOrNull()?.let { LinkedInProfile(it.value(HEADLINE), it.value(GEO)) }
+        table(csv, HEADLINE + SUMMARY + GEO).firstOrNull()?.let { LinkedInProfile(it.value(SUMMARY) ?: it.value(HEADLINE), it.value(GEO)) }
 
     companion object {
         private val POSITIONS = setOf("positions.csv", "posicoes.csv", "cargos.csv")
@@ -166,6 +167,7 @@ class LinkedInZipReader(
         private val NAME = setOf("name", "nome", "competencia", "idioma")
         private val PROFICIENCY = setOf("proficiency", "proficiencia", "nivel")
         private val HEADLINE = setOf("headline", "titulo")
+        private val SUMMARY = setOf("summary", "resumo", "sobre")
         private val GEO = setOf("geo location", "localizacao geografica", "location", "localidade")
 
         private val MONTHS = mapOf(

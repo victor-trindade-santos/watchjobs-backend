@@ -1,6 +1,7 @@
 package com.watchjobs.ingestion.connector
 
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -30,6 +31,16 @@ class RestClientHttpGateway(
         client.get()
             .uri(uri)
             .headers { h -> headers.forEach { (name, value) -> h.set(name, value) } }
+            .retrieve()
+            .body(String::class.java)
+            .orEmpty()
+
+    override fun post(uri: URI, headers: Map<String, String>, body: String): String =
+        client.post()
+            .uri(uri)
+            .headers { h -> headers.forEach { (name, value) -> h.set(name, value) } }
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(body)
             .retrieve()
             .body(String::class.java)
             .orEmpty()

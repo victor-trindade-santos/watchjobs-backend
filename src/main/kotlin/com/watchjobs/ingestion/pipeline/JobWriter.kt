@@ -2,6 +2,7 @@ package com.watchjobs.ingestion.pipeline
 
 import com.watchjobs.ingestion.store.CatalogStore
 import com.watchjobs.ingestion.store.DiscoveredJobStore
+import com.watchjobs.ingestion.store.JobGroupStore
 import com.watchjobs.ingestion.store.JobSeen
 import com.watchjobs.ingestion.store.JobSeenStore
 import com.watchjobs.ingestion.normalize.NormalizedJob
@@ -15,7 +16,8 @@ enum class WriteOutcome { NEW, UNCHANGED, CHANGED, EXPIRED }
 class JobWriter(
     private val jobs: DiscoveredJobStore,
     private val seen: JobSeenStore,
-    private val catalog: CatalogStore
+    private val catalog: CatalogStore,
+    private val groups: JobGroupStore
 ) {
     fun write(job: NormalizedJob, organizationId: Long?, runId: Long): WriteOutcome {
         val existing = seen.find(job.sourceId, job.externalId)
@@ -24,6 +26,7 @@ class JobWriter(
                 val key = jobs.insert(job, organizationId ?: catalog.organizationId(job.organizationName), locationOf(job))
                 jobs.insertSkills(key, job.skills)
                 seen.insert(job.sourceId, job.externalId, key, job.sourceCompanyId, job.contentHash, runId)
+                groups.assign(key, job)
                 WriteOutcome.NEW
             }
             // Já cumpriu os 30 dias: não volta como nova enquanto a fonte continuar listando.
@@ -39,18 +42,22 @@ class JobWriter(
                 }
                 jobs.replaceSkills(existing.key, job.skills)
                 seen.markChanged(existing, job.contentHash, runId)
+                groups.assign(existing.key, job)
                 WriteOutcome.CHANGED
             }
         }
     }
 
     // Passo 6: o que não veio num retrato completo vira PROBABLY_CLOSED. Devolve quantas fechou.
+    // Se a fechada era a representante de um grupo, outra cópia ativa assume o lugar na busca.
     fun closeMissing(sourceCompanyId: Long, fetchedExternalIds: Set<String>): Int =
         seen.findOpenByCompany(sourceCompanyId)
             .filter { it.externalId !in fetchedExternalIds }
             .count { open ->
                 seen.markClosed(open)
-                jobs.markProbablyClosed(open.key)
+                jobs.markProbablyClosed(open.key).also { closed ->
+                    if (closed) groups.groupOf(open.key.id)?.let(groups::refreshCanonical)
+                }
             }
 
     private fun expire(existing: JobSeen): WriteOutcome {

@@ -6,6 +6,8 @@ import com.watchjobs.ingestion.normalize.JobNormalizer
 import com.watchjobs.ingestion.normalize.SkillExtractor
 import com.watchjobs.ingestion.pipeline.IngestionPipeline
 import com.watchjobs.ingestion.pipeline.TargetResult
+import com.watchjobs.ingestion.queue.TaskOutcome
+import com.watchjobs.ingestion.queue.TaskQueue
 import com.watchjobs.ingestion.store.CatalogStore
 import com.watchjobs.ingestion.store.SourceTargetStore
 import com.watchjobs.ingestion.store.TriggerType
@@ -30,13 +32,15 @@ class OnDemandTaskProcessor(
     private val catalog: CatalogStore,
     private val classifier: JobClassifier,
     private val feed: FeedService,
-    private val notifications: NotificationService
+    private val notifications: NotificationService,
+    private val queue: TaskQueue
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val connectorsByCode = connectors.associateBy { it.code }
 
     fun process(): List<TargetResult> {
-        val tasks = claim()
+        queue.recoverAbandoned()
+        val tasks = queue.claim(listOf("ON_DEMAND_SEARCH"))
         if (tasks.isEmpty()) return emptyList()
         log.info("Busca sob demanda: {} pedidos na fila", tasks.size)
         jdbc.sql("SELECT discovery.ensure_partitions(14)").query().singleRow()
@@ -52,9 +56,9 @@ class OnDemandTaskProcessor(
             }
         }
 
-        tasks.forEach { taskId ->
+        tasks.forEach { task ->
             try {
-                queries.byTask(taskId).forEach { request ->
+                queries.byTask(task.id).forEach { request ->
                     val fresh = queries.matchingIds(request.queryText, request.locationText, request.workMode, seenSince = startedAt)
                     val all = queries.matchingIds(request.queryText, request.locationText, request.workMode)
                     feed.ensureScores(request.userId, all)
@@ -68,39 +72,19 @@ class OnDemandTaskProcessor(
                         dedupKey = "search:${request.id}"
                     )
                 }
-                finish(taskId, "COMPLETED", null)
+                queue.complete(task)
             } catch (ex: Exception) {
-                log.error("Pedido de busca {} falhou: {}", taskId, ex.message)
-                finish(taskId, "FAILED", ex.message)
+                log.error("Pedido de busca {} falhou (tentativa {}): {}", task.id, task.attempt, ex.message)
+                if (queue.fail(task, ex) == TaskOutcome.DEAD) {
+                    jdbc.sql(
+                        """
+                        UPDATE discovery.search_request SET status = 'FAILED', completed_at = now(), error_message = :error
+                         WHERE ingestion_task_id = :id AND status IN ('RUNNING', 'SYNC_DONE')
+                        """
+                    ).param("error", (ex.message ?: "Falha na busca").take(500)).param("id", task.id).update()
+                }
             }
         }
         return results
-    }
-
-    // Trava de linha: duas rodadas ao mesmo tempo não pegam o mesmo pedido.
-    private fun claim(): List<Long> =
-        jdbc.sql(
-            """
-            UPDATE discovery.ingestion_task
-               SET status = 'RUNNING', attempts = attempts + 1, locked_until = now() + interval '15 minutes'
-             WHERE ingestion_task_id IN (
-                   SELECT ingestion_task_id FROM discovery.ingestion_task
-                    WHERE task_type = 'ON_DEMAND_SEARCH' AND run_after <= now() AND attempts < max_attempts
-                      AND (status = 'PENDING' OR (status = 'RUNNING' AND locked_until < now()))
-                    ORDER BY priority, created_at
-                    LIMIT 20
-                    FOR UPDATE SKIP LOCKED)
-            RETURNING ingestion_task_id
-            """
-        ).query(Long::class.java).list().filterNotNull()
-
-    private fun finish(taskId: Long, status: String, error: String?) {
-        jdbc.sql(
-            """
-            UPDATE discovery.ingestion_task
-               SET status = :status, completed_at = now(), locked_until = NULL, last_error = :error
-             WHERE ingestion_task_id = :id
-            """
-        ).param("status", status).param("error", error?.take(2000)).param("id", taskId).update()
     }
 }

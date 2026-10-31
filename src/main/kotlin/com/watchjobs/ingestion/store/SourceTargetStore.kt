@@ -1,10 +1,17 @@
 package com.watchjobs.ingestion.store
 
 import com.watchjobs.ingestion.connector.FetchTarget
+import com.watchjobs.ingestion.pipeline.Circuit
+import com.watchjobs.ingestion.pipeline.CircuitBreaker
+import com.watchjobs.ingestion.pipeline.CircuitPolicy
+import com.watchjobs.ingestion.pipeline.CircuitState
 import com.watchjobs.sources.SourceType
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import tools.jackson.databind.ObjectMapper
+import java.time.Duration
+import java.time.OffsetDateTime
 
 data class SourceRow(
     val id: Long,
@@ -15,48 +22,80 @@ data class SourceRow(
     val allowsStorage: Boolean,
     val credentialsRef: String?,
     val rateLimitPerDay: Int?,
-    val config: Map<String, Any?>
+    val config: Map<String, Any?>,
+    val trustRank: Int = type.defaultTrustRank,
+    val circuit: Circuit = Circuit()
 )
 
 // Planejamento da rodada (fontes ativas e alvos vencidos) e saúde das fontes e empresas.
 @Repository
 class SourceTargetStore(
     private val jdbc: JdbcClient,
-    private val mapper: ObjectMapper
+    private val mapper: ObjectMapper,
+    @Value("\${app.ingestion.circuit.failure-threshold:5}") private val defaultFailureThreshold: Int,
+    @Value("\${app.ingestion.circuit.recovery-minutes:60}") private val defaultRecoveryMinutes: Long
 ) {
-    // Respeita is_active e o circuit breaker (next_attempt_at).
+    // Respeita is_active e o circuit breaker: circuito aberto só volta depois de next_attempt_at.
     fun activeSources(): List<SourceRow> =
         jdbc.sql(
             """
             SELECT job_source_id, code, name, source_type, base_url, allows_storage, credentials_ref,
-                   rate_limit_per_day, config::text AS config
+                   rate_limit_per_day, config::text AS config, trust_rank, circuit_breaker_state,
+                   consecutive_failures, circuit_opened_at, next_attempt_at
               FROM core.job_source
              WHERE is_active AND (next_attempt_at IS NULL OR next_attempt_at <= now())
              ORDER BY trust_rank, job_source_id
             """
         ).query { rs, _ ->
+            val type = SourceType.valueOf(rs.getString("source_type"))
             SourceRow(
                 id = rs.getLong("job_source_id"),
                 code = rs.getString("code"),
                 name = rs.getString("name"),
-                type = SourceType.valueOf(rs.getString("source_type")),
+                type = type,
                 baseUrl = rs.getString("base_url"),
                 allowsStorage = rs.getBoolean("allows_storage"),
                 credentialsRef = rs.getString("credentials_ref"),
                 rateLimitPerDay = (rs.getObject("rate_limit_per_day") as Number?)?.toInt(),
-                config = parseConfig(rs.getString("config"))
+                config = parseConfig(rs.getString("config")),
+                trustRank = rs.getInt("trust_rank"),
+                circuit = Circuit(
+                    state = CircuitState.valueOf(rs.getString("circuit_breaker_state")),
+                    failures = rs.getInt("consecutive_failures"),
+                    openedAt = rs.getObject("circuit_opened_at", OffsetDateTime::class.java),
+                    nextAttemptAt = rs.getObject("next_attempt_at", OffsetDateTime::class.java)
+                )
             )
         }.list()
 
-    // force = ignora o intervalo de coleta (execução manual).
+    fun sourceByCode(code: String): SourceRow? = jdbc.sql(
+        """
+        SELECT job_source_id, code, name, source_type, base_url, allows_storage, credentials_ref,
+               rate_limit_per_day, config::text AS config, trust_rank, is_active
+          FROM core.job_source WHERE code = :code
+        """
+    ).param("code", code).query { rs, _ ->
+        val type = SourceType.valueOf(rs.getString("source_type"))
+        SourceRow(
+            rs.getLong("job_source_id"), rs.getString("code"), rs.getString("name"), type, rs.getString("base_url"),
+            rs.getBoolean("allows_storage"), rs.getString("credentials_ref"), (rs.getObject("rate_limit_per_day") as Number?)?.toInt(),
+            parseConfig(rs.getString("config")), rs.getInt("trust_rank")
+        ).takeIf { rs.getBoolean("is_active") }
+    }.optional().orElse(null)
+
+    // force = ignora o intervalo de coleta (execução manual). Empresa que falha seguido entra em backoff
+    // (1 h, 2 h, 4 h... até 24 h) sem afetar as outras empresas da mesma fonte.
     fun companies(sourceId: Long, onlyKey: String?, force: Boolean): List<FetchTarget> {
         val filters = buildList {
             if (onlyKey != null) add("AND sc.external_key = :key")
-            if (!force) add("AND (sc.last_fetched_at IS NULL OR sc.last_fetched_at <= now() - make_interval(mins => sc.fetch_interval_minutes))")
+            if (!force) {
+                add("AND (sc.last_fetched_at IS NULL OR sc.last_fetched_at <= now() - make_interval(mins => sc.fetch_interval_minutes))")
+                add("AND (sc.consecutive_failures < 3 OR sc.last_error_at IS NULL OR sc.last_error_at <= now() - make_interval(mins => LEAST(1440, 60 * power(2, sc.consecutive_failures - 3)::int)))")
+            }
         }.joinToString(" ")
         var spec = jdbc.sql(
             """
-            SELECT sc.source_company_id, sc.external_key, sc.organization_id, o.name, sc.last_job_count
+            SELECT sc.source_company_id, sc.external_key, sc.organization_id, o.name, sc.last_job_count, sc.careers_url
               FROM core.source_company sc
               JOIN core.organization o ON o.organization_id = sc.organization_id
              WHERE sc.job_source_id = :sourceId AND sc.is_active $filters
@@ -70,7 +109,8 @@ class SourceTargetStore(
                 externalKey = rs.getString("external_key"),
                 organizationId = rs.getLong("organization_id"),
                 organizationName = rs.getString("name"),
-                lastJobCount = (rs.getObject("last_job_count") as Number?)?.toInt()
+                lastJobCount = (rs.getObject("last_job_count") as Number?)?.toInt(),
+                careersUrl = rs.getString("careers_url")
             )
         }.list()
     }
@@ -151,32 +191,54 @@ class SourceTargetStore(
             .update()
     }
 
-    fun sourceSucceeded(sourceId: Long) {
-        jdbc.sql(
-            """
-            UPDATE core.job_source
-               SET consecutive_failures = 0, last_success_at = now(), health_status = 'HEALTHY',
-                   circuit_breaker_state = 'CLOSED', circuit_opened_at = NULL, next_attempt_at = NULL,
-                   last_health_check_at = now()
-             WHERE job_source_id = :id
-            """
-        ).param("id", sourceId).update()
+    fun sourceSucceeded(sourceId: Long) = saveCircuit(sourceId, CircuitBreaker.onSuccess(), success = true)
+
+    // Circuito aberto e vencido: a rodada faz uma tentativa de teste (HALF_OPEN).
+    fun markHalfOpen(sourceId: Long) {
+        jdbc.sql("UPDATE core.job_source SET circuit_breaker_state = 'HALF_OPEN', last_health_check_at = now() WHERE job_source_id = :id AND circuit_breaker_state = 'OPEN'")
+            .param("id", sourceId).update()
     }
 
-    // Depois de 5 rodadas seguidas com falha, o circuito abre e a fonte descansa por 1 hora.
-    fun sourceFailed(sourceId: Long) {
+    // Limite de falhas e descanso por fonte (config circuitFailureThreshold e circuitRecoveryMinutes).
+    fun sourceFailed(source: SourceRow) {
+        val policy = CircuitPolicy(
+            failureThreshold = (source.config["circuitFailureThreshold"] as? Number)?.toInt() ?: defaultFailureThreshold,
+            recovery = Duration.ofMinutes((source.config["circuitRecoveryMinutes"] as? Number)?.toLong() ?: defaultRecoveryMinutes)
+        )
+        val current = jdbc.sql(
+            "SELECT circuit_breaker_state, consecutive_failures, circuit_opened_at, next_attempt_at FROM core.job_source WHERE job_source_id = :id"
+        ).param("id", source.id).query { rs, _ ->
+            Circuit(
+                CircuitState.valueOf(rs.getString(1)), rs.getInt(2),
+                rs.getObject(3, OffsetDateTime::class.java), rs.getObject(4, OffsetDateTime::class.java)
+            )
+        }.single()
+        saveCircuit(source.id, CircuitBreaker.onFailure(current, OffsetDateTime.now(), policy), success = false)
+    }
+
+    private fun saveCircuit(sourceId: Long, circuit: Circuit, success: Boolean) {
+        val health = when {
+            success -> "HEALTHY"
+            circuit.state == CircuitState.OPEN -> "DOWN"
+            else -> "DEGRADED"
+        }
         jdbc.sql(
             """
             UPDATE core.job_source
-               SET consecutive_failures = consecutive_failures + 1,
-                   health_status = CASE WHEN consecutive_failures + 1 >= 5 THEN 'DOWN' ELSE 'DEGRADED' END,
-                   circuit_breaker_state = CASE WHEN consecutive_failures + 1 >= 5 THEN 'OPEN' ELSE circuit_breaker_state END,
-                   circuit_opened_at = CASE WHEN consecutive_failures + 1 >= 5 THEN now() ELSE circuit_opened_at END,
-                   next_attempt_at = CASE WHEN consecutive_failures + 1 >= 5 THEN now() + interval '1 hour' ELSE next_attempt_at END,
-                   last_health_check_at = now()
+               SET consecutive_failures = :failures, circuit_breaker_state = :state, circuit_opened_at = :openedAt,
+                   next_attempt_at = :nextAttemptAt, health_status = :health, last_health_check_at = now(),
+                   last_success_at = CASE WHEN :success THEN now() ELSE last_success_at END
              WHERE job_source_id = :id
             """
-        ).param("id", sourceId).update()
+        )
+            .param("failures", circuit.failures)
+            .param("state", circuit.state.name)
+            .param("openedAt", circuit.openedAt)
+            .param("nextAttemptAt", circuit.nextAttemptAt)
+            .param("health", health)
+            .param("success", success)
+            .param("id", sourceId)
+            .update()
     }
 
     @Suppress("UNCHECKED_CAST")

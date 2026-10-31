@@ -7,3 +7,5 @@ class ConflictException(message: String) : RuntimeException(message)
 class BusinessException(message: String) : RuntimeException(message)
 
 class TooManyRequestsException(message: String) : RuntimeException(message)
+
+class ServiceUnavailableException(message: String) : RuntimeException(message)

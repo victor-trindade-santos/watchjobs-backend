@@ -39,7 +39,7 @@ data class PersonalRequest(
     @field:Size(min = 1, max = 80, message = "Sobrenome deve ter entre 1 e 80 caracteres") val lastName: String? = null,
     @field:Past(message = "Data de nascimento deve estar no passado") val birthDate: LocalDate? = null,
     @field:Size(max = 2048) val profileImageUrl: String? = null,
-    @field:Size(max = 500, message = "Objetivo deve ter no máximo 500 caracteres") val objective: String? = null,
+    @field:Size(max = 10000, message = "Resumo profissional deve ter no máximo 10000 caracteres") val objective: String? = null,
     val availability: Availability? = null,
     val location: LocationInput? = null
 )
