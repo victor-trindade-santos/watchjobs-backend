@@ -10,7 +10,10 @@ INSERT INTO core.organization (name, organization_type, normalized_name, website
     ('Gympass', 'COMPANY', 'gympass', 'https://wellhub.com'),
     ('Wildlife Studios', 'COMPANY', 'wildlife studios', 'https://wildlifestudios.com'),
     ('Belvo', 'COMPANY', 'belvo', NULL),
-    ('Experian', 'COMPANY', 'experian', NULL)
+    ('Experian', 'COMPANY', 'experian', NULL),
+    ('Neon', 'COMPANY', 'neon', NULL),
+    ('Swile', 'COMPANY', 'swile', NULL),
+    ('CI&T', 'COMPANY', 'ci&t', NULL)
 ON CONFLICT ON CONSTRAINT organization_type_normalized_name_key DO NOTHING;
 
 INSERT INTO core.source_company (job_source_id, organization_id, external_key, careers_url)
@@ -32,7 +35,10 @@ INSERT INTO core.source_company (job_source_id, organization_id, external_key, c
 SELECT js.job_source_id, o.organization_id, b.board, b.careers_url
   FROM (VALUES
     ('ASHBY', 'belvo', 'belvo', 'https://jobs.ashbyhq.com/belvo'),
-    ('SMARTRECRUITERS', 'Experian', 'experian', 'https://careers.smartrecruiters.com/Experian')
+    ('SMARTRECRUITERS', 'Experian', 'experian', 'https://careers.smartrecruiters.com/Experian'),
+    ('LEVER', 'neon', 'neon', 'https://jobs.lever.co/neon'),
+    ('LEVER', 'swile', 'swile', 'https://jobs.lever.co/swile'),
+    ('LEVER', 'ciandt', 'ci&t', 'https://jobs.lever.co/ciandt')
   ) AS b (source_code, board, normalized_name, careers_url)
   JOIN core.organization o ON o.organization_type = 'COMPANY' AND o.normalized_name = b.normalized_name
   JOIN core.job_source js ON js.code = b.source_code
@@ -52,8 +58,9 @@ UPDATE core.job_source
    SET config = config || '{"segmentWorkModes": ["REMOTE"], "searchTerms": {"BACKEND": "backend", "FRONTEND": "frontend", "FULLSTACK": "full stack", "MOBILE": "mobile", "DATA_ENGINEERING": "data engineer", "DATA_SCIENCE": "data scientist", "DATA_ANALYTICS": "data analyst", "DEVOPS_SRE": "devops", "SECURITY": "security engineer", "QA": "qa"}}'::jsonb
  WHERE code = 'REMOTIVE' AND config -> 'segmentWorkModes' IS NULL;
 
--- Jooble: cota conservadora (segmentos agendados, cerca de 24 por dia, mais as buscas sob demanda).
-UPDATE core.job_source SET rate_limit_per_day = 60 WHERE code = 'JOOBLE' AND rate_limit_per_day IS NULL;
+-- Jooble: o plano grátis tem 500 chamadas no total (não por mês) por chave, e cada país exige a sua chave.
+-- Teto diário baixo para a cota não acabar em poucos dias.
+UPDATE core.job_source SET rate_limit_per_day = 10 WHERE code = 'JOOBLE' AND rate_limit_per_day IS NULL;
 
 -- Ativação (F2-05): depois de ler os termos de uso, preencha o link e a data e descomente.
 -- A cota diária do Adzuna vem da conta de desenvolvedor (painel em https://developer.adzuna.com).
@@ -67,26 +74,25 @@ UPDATE core.job_source
         rate_limit_per_day = 150
   WHERE code = 'ADZUNA' AND terms_reviewed_at IS NULL;
 
--- Fontes novas: preparadas, mas só descomente depois de ler os termos (preencha o link e a data da leitura).
+-- Fontes novas: preparadas, mas só descomente depois de ler os termos (confira a data da leitura).
 -- UPDATE core.job_source
---     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = '<link dos termos do Ashby>'
+--     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = 'https://developers.ashbyhq.com/docs/public-job-posting-api'
 --   WHERE code = 'ASHBY' AND terms_reviewed_at IS NULL;
 --
 -- UPDATE core.job_source
---     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = '<link dos termos do SmartRecruiters>'
+--     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = 'https://developers.smartrecruiters.com/docs/posting-api'
 --   WHERE code = 'SMARTRECRUITERS' AND terms_reviewed_at IS NULL;
 --
--- Lever: só depois de cadastrar ao menos uma empresa em core.source_company.
 -- UPDATE core.job_source
---     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = '<link dos termos do Lever>'
+--     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = 'https://github.com/lever/postings-api'
 --   WHERE code = 'LEVER' AND terms_reviewed_at IS NULL;
 --
--- Remotive: exige atribuição e poucas chamadas por dia (rate_limit_per_day = 4).
+-- Remotive: exige atribuição (nome e link da vaga no Remotive) e poucas chamadas por dia (rate_limit_per_day = 4).
 -- UPDATE core.job_source
---     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = '<link dos termos do Remotive>'
+--     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = 'https://github.com/remotive-com/remote-jobs-api#terms-of-services'
 --   WHERE code = 'REMOTIVE' AND terms_reviewed_at IS NULL;
 --
--- Jooble: só depois de JOOBLE_API_KEY estar no GitHub e no Container App.
+-- Jooble: só depois de JOOBLE_API_KEY (chave do domínio br.jooble.org) estar no GitHub e no Container App.
 -- UPDATE core.job_source
---     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = '<link dos termos do Jooble>'
+--     SET is_active = true, terms_reviewed_at = '<data da leitura>', terms_url = 'https://help.jooble.org/en/support/solutions/articles/60001448238-jooble-rest-api-documentation'
 --   WHERE code = 'JOOBLE' AND terms_reviewed_at IS NULL;
