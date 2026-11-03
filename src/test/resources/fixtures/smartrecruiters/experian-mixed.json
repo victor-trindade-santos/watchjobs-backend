@@ -1,0 +1,47 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 4,
+  "content": [
+    {
+      "id": "744000158810095",
+      "name": "Gerente Executivo de Consultoria Analítica",
+      "releasedDate": "2026-10-30T17:40:08.008Z",
+      "company": { "identifier": "Experian", "name": "Experian" },
+      "location": { "city": "São Paulo", "country": "br", "remote": false, "hybrid": true, "fullLocation": "São Paulo, , Brazil" },
+      "department": { "id": "2618704", "label": "Analytics" },
+      "function": { "id": "information_technology", "label": "Information Technology" },
+      "typeOfEmployment": { "id": "permanent", "label": "Full-time" }
+    },
+    {
+      "id": "744000158611740",
+      "name": "Principal Product Manager, Contract Management",
+      "releasedDate": "2026-10-29T22:16:03.846Z",
+      "company": { "identifier": "Experian", "name": "Experian" },
+      "location": { "city": "United States", "region": "UNITED STATES", "country": "us", "remote": true, "hybrid": false, "fullLocation": "United States, UNITED STATES, United States" },
+      "department": { "id": "2618857", "label": "Product Management" },
+      "function": { "id": "information_technology", "label": "Information Technology" },
+      "typeOfEmployment": { "id": "permanent", "label": "Full-time" }
+    },
+    {
+      "id": "744000159115439",
+      "name": "Demand & Software Asset management Specialist II",
+      "releasedDate": "2026-11-02T11:47:03.012Z",
+      "company": { "identifier": "Experian", "name": "Experian" },
+      "location": { "city": "Hyderabad", "country": "in", "remote": false, "hybrid": false, "fullLocation": "Hyderabad, , India" },
+      "department": { "id": "2618806", "label": "Finance" },
+      "function": { "id": "information_technology", "label": "Information Technology" },
+      "typeOfEmployment": { "id": "permanent", "label": "Full-time" }
+    },
+    {
+      "id": "744000158829134",
+      "name": "Operational Resilience Manager",
+      "releasedDate": "2026-10-30T19:17:07.826Z",
+      "company": { "identifier": "Experian", "name": "Experian" },
+      "location": { "city": "Costa Mesa", "region": "CA", "country": "us", "remote": false, "hybrid": true, "fullLocation": "Costa Mesa, CA, United States" },
+      "department": { "id": "2618823", "label": "Legal & Compliance" },
+      "function": { "id": "information_technology", "label": "Information Technology" },
+      "typeOfEmployment": { "id": "permanent", "label": "Full-time" }
+    }
+  ]
+}

@@ -19,7 +19,9 @@ data class RawPosting(
     val departments: List<String> = emptyList(),
     // Dados estruturados da fonte (ATS): valem mais que a dedução pelo texto.
     val workMode: String? = null,
-    val jobType: String? = null
+    val jobType: String? = null,
+    // ISO 3166-1 alfa-2, quando a fonte informa o país em campo próprio.
+    val countryCode: String? = null
 )
 
 // Um alvo da coleta: uma empresa (ATS, scraping) ou um segmento (agregador).

@@ -47,6 +47,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
           ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
           MAIL_HOST: ${{ vars.MAIL_HOST }}
           MAIL_PORT: ${{ vars.MAIL_PORT }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}

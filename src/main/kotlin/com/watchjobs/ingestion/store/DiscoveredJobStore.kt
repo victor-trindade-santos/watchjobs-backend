@@ -82,21 +82,18 @@ class DiscoveredJobStore(
         insertSkills(key, skills)
     }
 
+    // Uma instrução com todas as habilidades da vaga (cada linha é uma tupla de VALUES).
     fun insertSkills(key: CorpusKey, skills: List<ExtractedSkill>) {
-        skills.forEach { skill ->
-            jdbc.sql(
-                """
-                INSERT INTO discovery.discovered_job_skill (discovered_job_id, discovered_at, skill_id, is_required)
-                VALUES (:id, :at, :skillId, :required)
-                ON CONFLICT DO NOTHING
-                """
-            )
-                .param("id", key.id)
-                .param("at", key.discoveredAt)
-                .param("skillId", skill.skillId)
-                .param("required", skill.required)
-                .update()
-        }
+        if (skills.isEmpty()) return
+        jdbc.sql(
+            """
+            INSERT INTO discovery.discovered_job_skill (discovered_job_id, discovered_at, skill_id, is_required)
+            VALUES :rows
+            ON CONFLICT DO NOTHING
+            """
+        )
+            .param("rows", skills.map { arrayOf<Any>(key.id, key.discoveredAt, it.skillId, it.required) })
+            .update()
     }
 
     // Vaga vista de novo sem mudança: só last_seen_at, e volta a ACTIVE se tinha sido dada como fechada.
@@ -112,6 +109,24 @@ class DiscoveredJobStore(
             .param("id", key.id)
             .param("at", key.discoveredAt)
             .update() == 1
+
+    // touch em lote. Devolve os ids que ainda existem no corpus (os ausentes caíram com a partição).
+    fun touchAll(keys: Collection<CorpusKey>): Set<Long> =
+        keys.chunked(JobSeenStore.BATCH_SIZE).flatMap { chunk ->
+            jdbc.sql(
+                """
+                UPDATE discovery.discovered_job
+                   SET last_seen_at = now(),
+                       corpus_status = CASE WHEN corpus_status = 'PROBABLY_CLOSED' THEN 'ACTIVE' ELSE corpus_status END
+                 WHERE (discovered_job_id, discovered_at) IN (:keys)
+                RETURNING discovered_job_id
+                """
+            )
+                .param("keys", chunk.map { arrayOf<Any>(it.id, it.discoveredAt) })
+                .query(Long::class.java)
+                .list()
+                .filterNotNull()
+        }.toSet()
 
     fun markProbablyClosed(key: CorpusKey): Boolean =
         jdbc.sql(

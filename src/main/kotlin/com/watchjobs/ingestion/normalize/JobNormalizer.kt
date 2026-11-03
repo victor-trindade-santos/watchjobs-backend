@@ -77,7 +77,7 @@ class JobNormalizer(
             jobUrl = url,
             city = location.city?.take(100),
             state = location.state?.take(100),
-            countryCode = location.countryCode,
+            countryCode = raw.countryCode ?: location.countryCode,
             rawLocation = raw.locationText?.trim()?.ifEmpty { null },
             workMode = workMode,
             experienceLevel = classification.seniority?.value,

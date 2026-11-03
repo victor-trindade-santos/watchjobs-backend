@@ -136,7 +136,9 @@ class RemotiveConnector(
     private val throttle = Throttle()
 
     override fun fetch(source: SourceContext, target: FetchTarget): FetchResult {
-        val text = target.keywords ?: target.roleFamily ?: throw ConnectorException("Segmento do Remotive sem termo")
+        // O Remotive busca em inglês; config searchTerms troca as palavras-chave do segmento pelo termo da área.
+        val mapped = target.roleFamily?.let { (source.config["searchTerms"] as? Map<*, *>)?.get(it) as? String }
+        val text = mapped ?: target.keywords ?: target.roleFamily ?: throw ConnectorException("Segmento do Remotive sem termo")
         return search(source, FreeQuery(text = text.replace(" remoto", "").trim(), workMode = "REMOTE"))
     }
 

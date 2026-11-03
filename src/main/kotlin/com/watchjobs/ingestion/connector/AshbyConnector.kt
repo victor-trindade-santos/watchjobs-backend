@@ -57,8 +57,10 @@ class AshbyConnector(
                     else -> null
                 },
                 departments = listOfNotNull(job.department, job.team),
+                // isRemote vem verdadeiro também em vagas híbridas: o workplaceType decide primeiro.
                 workMode = StructuredHints.workMode(job.workplaceType) ?: if (job.isRemote == true) "REMOTE" else null,
-                jobType = StructuredHints.jobType(job.employmentType)
+                jobType = StructuredHints.jobType(job.employmentType),
+                countryCode = StructuredHints.country(job.address?.postalAddress?.addressCountry)
             )
         }
     }
@@ -87,8 +89,15 @@ data class AshbyJob(
     val publishedAt: String? = null,
     val jobUrl: String? = null,
     val applyUrl: String? = null,
-    val compensation: AshbyCompensation? = null
+    val compensation: AshbyCompensation? = null,
+    val address: AshbyAddress? = null
 )
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AshbyAddress(val postalAddress: AshbyPostalAddress? = null)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class AshbyPostalAddress(val addressCountry: String? = null)
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class AshbyCompensation(val summaryComponents: List<AshbyComponent> = emptyList())

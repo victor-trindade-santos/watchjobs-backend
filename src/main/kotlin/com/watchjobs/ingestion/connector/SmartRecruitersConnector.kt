@@ -69,7 +69,8 @@ class SmartRecruitersConnector(
                     location?.hybrid == true -> "HYBRID"
                     else -> null
                 },
-                jobType = StructuredHints.jobType(p.typeOfEmployment?.label)
+                jobType = StructuredHints.jobType(p.typeOfEmployment?.label),
+                countryCode = StructuredHints.country(location?.country)
             )
         }
 

@@ -28,6 +28,46 @@ class JobSeenStore(private val jdbc: JdbcClient) {
             .optional()
             .orElse(null)
 
+    // Uma consulta por lote no lugar de um find por vaga.
+    fun findAll(sourceId: Long, externalIds: Collection<String>): Map<String, JobSeen> =
+        externalIds.distinct().chunked(BATCH_SIZE).flatMap { chunk ->
+            jdbc.sql("SELECT * FROM discovery.job_seen WHERE source_id = :sourceId AND external_id IN (:ids)")
+                .param("sourceId", sourceId)
+                .param("ids", chunk)
+                .query { rs, _ -> map(rs) }
+                .list()
+        }.associateBy { it.externalId }
+
+    fun markSeenAll(sourceId: Long, externalIds: Collection<String>, runId: Long) {
+        externalIds.chunked(BATCH_SIZE).forEach { chunk ->
+            jdbc.sql(
+                """
+                UPDATE discovery.job_seen
+                   SET last_seen_at = now(), last_ingestion_run_id = :runId, closed_at = NULL
+                 WHERE source_id = :sourceId AND external_id IN (:ids)
+                """
+            )
+                .param("runId", runId)
+                .param("sourceId", sourceId)
+                .param("ids", chunk)
+                .update()
+        }
+    }
+
+    fun markExpiredAll(sourceId: Long, externalIds: Collection<String>) {
+        externalIds.chunked(BATCH_SIZE).forEach { chunk ->
+            jdbc.sql(
+                """
+                UPDATE discovery.job_seen SET expired_at = now()
+                 WHERE source_id = :sourceId AND external_id IN (:ids) AND expired_at IS NULL
+                """
+            )
+                .param("sourceId", sourceId)
+                .param("ids", chunk)
+                .update()
+        }
+    }
+
     fun insert(sourceId: Long, externalId: String, key: CorpusKey, sourceCompanyId: Long?, contentHash: String, runId: Long) {
         jdbc.sql(
             """
@@ -122,4 +162,9 @@ class JobSeenStore(private val jdbc: JdbcClient) {
         closedAt = rs.getObject("closed_at", OffsetDateTime::class.java),
         expiredAt = rs.getObject("expired_at", OffsetDateTime::class.java)
     )
+
+    companion object {
+        // Teto de parâmetros por instrução (o Postgres aceita até 65535).
+        const val BATCH_SIZE = 500
+    }
 }

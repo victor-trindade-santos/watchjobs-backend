@@ -9,14 +9,15 @@ Hospedagem: **Azure Container Apps** (Azure for Students, região `brazilsouth`)
 **Neon** (`sa-east-1`). Grupo de recursos `watchjobs-rg`, app `watchjobs-api`.
 
 **Secrets do repositório (GitHub → Settings → Secrets):** `DB_URL_DIRECT`, `DB_OWNER_USERNAME`, `DB_OWNER_PASSWORD`,
-`JWT_SECRET`, `NEON_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+`JWT_SECRET`, `NEON_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
 `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`.
 
 **Variables do repositório:** `NEON_PROJECT_ID`, `APP_CORS_ALLOWED_ORIGINS`, `PUBLIC_BASE_URL`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_FROM`.
 
 **Segredos do Container App (`az containerapp secret set`, lidos pela API):** `db-url` (pooled, com
 `sslmode=require&prepareThreshold=0`), `db-username` (`watchjobs_app`), `db-password`, `jwt-secret`,
-`mail-username`, `mail-password`, `adzuna-app-id`, `adzuna-app-key`, `github-dispatch-token` (token fine-grained só com
+`mail-username`, `mail-password`, `adzuna-app-id`, `adzuna-app-key`, `jooble-api-key` (precisa existir antes do deploy:
+o `az containerapp update` falha com `secretref` sem segredo), `github-dispatch-token` (token fine-grained só com
 "Actions: read and write" neste repositório). A API lê `jwt-secret` da Azure, não o secret do GitHub. Copiar o valor
 da Azure para o GitHub só alinha os dois cofres; não muda a revisão que já está no ar. O deploy copia `JWT_SECRET`
 do GitHub de volta para `jwt-secret` e cria uma revisão nova. Colar o valor na variável de ambiente do portal não

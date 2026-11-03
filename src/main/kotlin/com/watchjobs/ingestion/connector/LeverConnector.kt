@@ -1,12 +1,14 @@
 package com.watchjobs.ingestion.connector
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.watchjobs.catalog.TextNormalizer
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.util.UriComponentsBuilder
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.Locale
 
 // Pausa mínima entre chamadas à mesma fonte (respeita os limites de uso das APIs públicas).
 internal class Throttle {
@@ -29,6 +31,21 @@ internal fun httpError(source: String, ex: Exception): ConnectorException = when
 
 // Modalidade e contrato informados pela fonte, no vocabulário do corpus.
 internal object StructuredHints {
+    private val isoCountries = Locale.getISOCountries().toSet()
+
+    // Nomes em inglês e português ("United States", "Brasil") para o código do país.
+    private val countryByName: Map<String, String> by lazy {
+        isoCountries.flatMap { code ->
+            listOf(Locale.ENGLISH, Locale.forLanguageTag("pt-BR")).map { TextNormalizer.forMatching(Locale.of("", code).getDisplayCountry(it)) to code }
+        }.toMap()
+    }
+
+    fun country(value: String?): String? {
+        val v = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (v.length == 2) return v.uppercase(Locale.ROOT).takeIf { it in isoCountries }
+        return countryByName[TextNormalizer.forMatching(v)]
+    }
+
     fun workMode(value: String?): String? = when (value?.lowercase()?.replace("-", "")?.replace("_", "")?.replace(" ", "")) {
         "remote", "remoto", "telecommute", "fullyremote" -> "REMOTE"
         "hybrid", "hibrido", "híbrido" -> "HYBRID"
@@ -99,7 +116,8 @@ class LeverConnector(
                 },
                 departments = listOfNotNull(p.categories?.team, p.categories?.department),
                 workMode = StructuredHints.workMode(p.workplaceType),
-                jobType = StructuredHints.jobType(p.categories?.commitment)
+                jobType = StructuredHints.jobType(p.categories?.commitment),
+                countryCode = StructuredHints.country(p.country)
             )
         }
     }
@@ -117,6 +135,7 @@ data class LeverPosting(
     val applyUrl: String? = null,
     val createdAt: Long? = null,
     val workplaceType: String? = null,
+    val country: String? = null,
     val descriptionPlain: String? = null,
     val description: String? = null,
     val additionalPlain: String? = null,

@@ -6,6 +6,7 @@ import com.watchjobs.ingestion.connector.JobSourceConnector
 import com.watchjobs.ingestion.connector.SourceContext
 import com.watchjobs.ingestion.normalize.JobNormalizer
 import com.watchjobs.ingestion.normalize.NormalizeContext
+import com.watchjobs.ingestion.normalize.NormalizedJob
 import com.watchjobs.ingestion.normalize.SkillExtractor
 import com.watchjobs.ingestion.store.CatalogStore
 import com.watchjobs.ingestion.store.IngestionRunStore
@@ -72,7 +73,7 @@ data class RoundSummary(
         val t = totals
         return buildString {
             appendLine("Resumo da rodada: ${targets.size} alvos, $sourcesAttempted fontes ($sourcesFailed com falha)")
-            appendLine("  vagas lidas ${t.fetched}, novas ${t.new}, alteradas ${t.updated}, iguais/expiradas ${t.deduplicated}, rejeitadas ${t.rejected}, fechadas ${t.closed}")
+            appendLine("  vagas lidas ${t.fetched}, novas ${t.new}, alteradas ${t.updated}, iguais/expiradas ${t.deduplicated}, rejeitadas ${t.rejected}, fechadas ${t.closed}, fora da política de local ${t.filtered}")
             appendLine("  cobertura das regras: ${percent(withoutRoleFamily)}% sem área e ${percent(withoutLevel)}% sem nível ($classifiedJobs vagas novas ou alteradas)")
             if (budgetExceeded) appendLine("  orçamento de tempo esgotado: alvos restantes ficam para a próxima rodada")
             targets.forEach {
@@ -124,7 +125,7 @@ class IngestionPipeline(
                 continue
             }
             val sourceTargets = when (source.type) {
-                SourceType.AGGREGATOR -> targets.segments(options.force)
+                SourceType.AGGREGATOR -> targets.segments(source.id, options.force, segmentWorkModes(source))
                 else -> targets.companies(source.id, options.companyKey, options.force)
             }
             if (sourceTargets.isEmpty()) {
@@ -190,8 +191,10 @@ class IngestionPipeline(
     ): TargetResult {
         val counters = RunCounters()
         val runId = runs.open(source.id, target.sourceCompanyId, target.segmentId, trigger)
+        val clock = PhaseClock()
         try {
             val fetched = connector.fetch(context, target)
+            clock.lap("busca")
             counters.fetched = fetched.postings.size
             val normalizeContext = NormalizeContext(
                 sourceId = source.id,
@@ -201,18 +204,26 @@ class IngestionPipeline(
                 organizationName = target.organizationName,
                 defaultCountry = target.countryCode ?: context.configString("country")?.uppercase()
             )
+            val policy = LocationPolicy.of(source.config)
+            // Vaga fora da política de local não entra em fetchedIds: a cópia antiga, se houver, é fechada.
             val fetchedIds = mutableSetOf<String>()
+            val accepted = mutableListOf<NormalizedJob>()
             for (raw in fetched.postings) {
-                fetchedIds += raw.externalId
                 val job = normalizer.normalize(raw, normalizeContext)
-                if (job == null) {
-                    counters.rejected++
+                if (job != null && !policy.accepts(job)) {
+                    counters.filtered++
                     continue
                 }
+                fetchedIds += raw.externalId
+                if (job == null) counters.rejected++ else accepted += job
+            }
+            clock.lap("normalização")
+
+            fun writeOne(job: NormalizedJob) {
                 val outcome = try {
                     transactions.execute { writer.write(job, target.organizationId, runId) }
                 } catch (ex: Exception) {
-                    log.warn("{}/{}: vaga {} rejeitada: {}", source.code, target.label, raw.externalId, ex.message)
+                    log.warn("{}/{}: vaga {} rejeitada: {}", source.code, target.label, job.externalId, ex.message)
                     null
                 }
                 when (outcome) {
@@ -223,6 +234,22 @@ class IngestionPipeline(
                 }
                 if (outcome == WriteOutcome.NEW || outcome == WriteOutcome.CHANGED) coverage.add(job.roleFamily, job.experienceLevel)
             }
+
+            val plan = writer.plan(source.id, accepted)
+            counters.deduplicated += plan.expired
+            clock.lap("leitura do job_seen")
+            if (plan.unchanged.isNotEmpty()) {
+                val batch = try {
+                    transactions.execute { writer.touchUnchanged(source.id, plan.unchanged, runId) }
+                } catch (ex: Exception) {
+                    log.warn("{}/{}: lote de {} vagas iguais falhou, gravando uma a uma: {}", source.code, target.label, plan.unchanged.size, ex.message)
+                    null
+                }
+                if (batch != null) counters.deduplicated += batch.size else plan.unchanged.forEach { writeOne(it.job) }
+            }
+            clock.lap("${plan.unchanged.size} iguais em lote")
+            plan.individual.forEach(::writeOne)
+            clock.lap("${plan.individual.size} uma a uma")
 
             var status = RunStatus.COMPLETED
             var error: String? = null
@@ -236,9 +263,11 @@ class IngestionPipeline(
                     counters.closed = transactions.execute { writer.closeMissing(companyId, fetchedIds) }
                 }
             }
+            clock.lap("fechamento")
             runs.close(runId, status, counters, fetched.fullSnapshot, error)
             companyId?.let { targets.companySucceeded(it, if (status == RunStatus.COMPLETED && fetched.fullSnapshot) counters.fetched else null) }
             target.segmentId?.let { targets.segmentIngested(it) }
+            log.info("{}/{}: {} vagas ({} fora da política de local) em {}", source.code, target.label, counters.fetched, counters.filtered, clock.describe())
             return TargetResult(source.code, target.label, status, counters, error)
         } catch (ex: Exception) {
             val message = ex.message ?: ex.javaClass.simpleName
@@ -257,6 +286,10 @@ class IngestionPipeline(
         check(missing.isEmpty()) { "variáveis de credencial ausentes: ${missing.joinToString()}" }
         return SourceContext(source.id, source.code, source.baseUrl, source.config, credentials)
     }
+
+    // Modos de trabalho aceitos pelo agregador (config segmentWorkModes); sem a chave, todos os segmentos.
+    private fun segmentWorkModes(source: SourceRow): List<String>? =
+        (source.config["segmentWorkModes"] as? List<*>)?.mapNotNull { it?.toString()?.uppercase() }?.ifEmpty { null }
 
     // Passo 10: partições, limpeza dos 30 dias e dos códigos de autenticação vencidos.
     private fun maintenance() {
@@ -279,5 +312,22 @@ class IngestionPipeline(
             if (roleFamily == null) withoutRoleFamily++
             if (level == null) withoutLevel++
         }
+    }
+
+    // Tempo de cada fase de um alvo, para o log da rodada.
+    private class PhaseClock {
+        private val started = System.nanoTime()
+        private var last = started
+        private val laps = mutableListOf<String>()
+
+        fun lap(name: String) {
+            val now = System.nanoTime()
+            laps += "$name ${millis(now - last)}"
+            last = now
+        }
+
+        fun describe(): String = "${millis(last - started)} (${laps.joinToString("; ")})"
+
+        private fun millis(nanos: Long) = "${nanos / 1_000_000} ms"
     }
 }

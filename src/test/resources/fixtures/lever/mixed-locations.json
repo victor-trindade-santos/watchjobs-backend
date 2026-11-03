@@ -1,0 +1,46 @@
+[
+  {
+    "id": "f9b925d6-38e1-4b24-9adb-4cbbcca3100f",
+    "text": "Staff Software Engineer",
+    "hostedUrl": "https://jobs.lever.co/neon/f9b925d6-38e1-4b24-9adb-4cbbcca3100f",
+    "applyUrl": "https://jobs.lever.co/neon/f9b925d6-38e1-4b24-9adb-4cbbcca3100f/apply",
+    "createdAt": 1761313525991,
+    "workplaceType": "remote",
+    "country": "BR",
+    "categories": { "commitment": "CLT", "department": "Technology", "location": "Remoto", "team": "Production Engineering", "allLocations": ["Remoto"] },
+    "descriptionPlain": "Sobre a Neon: na Neon, cada ideia conta e pode transformar a vida financeira de milhares de brasileiras e brasileiros."
+  },
+  {
+    "id": "82fbbecc-5535-466b-a84b-7957cf49e443",
+    "text": "Senior Software Developer, Platform",
+    "hostedUrl": "https://jobs.lever.co/leverdemo/82fbbecc-5535-466b-a84b-7957cf49e443",
+    "applyUrl": "https://jobs.lever.co/leverdemo/82fbbecc-5535-466b-a84b-7957cf49e443/apply",
+    "createdAt": 1484684995367,
+    "workplaceType": "remote",
+    "country": "US",
+    "categories": { "location": "Irvine, CA", "team": "Product", "allLocations": ["Irvine, CA"] },
+    "descriptionPlain": "Welcome to the Demo Job Listing for Lever! This is a fictional job created solely for demonstration purposes."
+  },
+  {
+    "id": "120b5976-ee4e-4dc5-b31b-2b1ca124460c",
+    "text": "Dentist",
+    "hostedUrl": "https://jobs.lever.co/leverdemo/120b5976-ee4e-4dc5-b31b-2b1ca124460c",
+    "applyUrl": "https://jobs.lever.co/leverdemo/120b5976-ee4e-4dc5-b31b-2b1ca124460c/apply",
+    "createdAt": 1787600587936,
+    "workplaceType": "onsite",
+    "country": "US",
+    "categories": { "commitment": "Regular Full Time (Salary)", "department": "People (HR)", "location": "Houston, TX", "team": "People", "allLocations": ["Houston, TX"] },
+    "descriptionPlain": ""
+  },
+  {
+    "id": "5243ea1b-f2c0-4f43-8f02-a5dbb97e24cb",
+    "text": "Staff Accountant",
+    "hostedUrl": "https://jobs.lever.co/leverdemo/5243ea1b-f2c0-4f43-8f02-a5dbb97e24cb",
+    "applyUrl": "https://jobs.lever.co/leverdemo/5243ea1b-f2c0-4f43-8f02-a5dbb97e24cb/apply",
+    "createdAt": 1556222002880,
+    "workplaceType": "hybrid",
+    "country": "US",
+    "categories": { "commitment": "Regular Full Time (Salary)", "department": "Finance", "location": "New York, New York", "team": "Accounting Advisory", "allLocations": ["New York, New York"] },
+    "descriptionPlain": "Welcome to the Demo Job Listing for Lever! This is a fictional job created solely for demonstration purposes."
+  }
+]

@@ -13,7 +13,9 @@ data class RunCounters(
     var updated: Int = 0,
     var deduplicated: Int = 0,
     var rejected: Int = 0,
-    var closed: Int = 0
+    var closed: Int = 0,
+    // Fora da política de local: só vai para o log (ingestion_run não tem coluna para isso).
+    var filtered: Int = 0
 ) {
     operator fun plusAssign(other: RunCounters) {
         fetched += other.fetched
@@ -22,6 +24,7 @@ data class RunCounters(
         deduplicated += other.deduplicated
         rejected += other.rejected
         closed += other.closed
+        filtered += other.filtered
     }
 }
 

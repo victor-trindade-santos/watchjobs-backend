@@ -105,7 +105,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # db/mail/adzuna continuam só no Container App. jwt-secret é copiado do GitHub a cada deploy.
+      # db/mail/adzuna/jooble continuam só no Container App. jwt-secret é copiado do GitHub a cada deploy.
       - name: Publicar no Azure Container Apps
         env:
           CORS_ORIGINS: ${{ vars.APP_CORS_ALLOWED_ORIGINS }}
@@ -141,6 +141,7 @@ jobs:
               "MAIL_PASSWORD=secretref:mail-password" \
               "ADZUNA_APP_ID=secretref:adzuna-app-id" \
               "ADZUNA_APP_KEY=secretref:adzuna-app-key" \
+              "JOOBLE_API_KEY=secretref:jooble-api-key" \
               "GITHUB_DISPATCH_TOKEN=secretref:github-dispatch-token" \
             --output none
           # O app nasce com a imagem de exemplo na porta 80; a API escuta na 8080.

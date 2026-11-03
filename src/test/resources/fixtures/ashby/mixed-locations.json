@@ -1,0 +1,68 @@
+{
+  "jobs": [
+    {
+      "id": "161cfb0e-5ee2-4655-b45b-460c066d6c73",
+      "title": "Senior Applied Data Scientist",
+      "department": "Engineering",
+      "team": "Engineering",
+      "employmentType": "FullTime",
+      "location": "🇧🇷 São Paulo / 🌎Remote",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "address": { "postalAddress": { "addressRegion": "São Paulo", "addressCountry": "Brazil", "addressLocality": "São Paulo" } },
+      "publishedAt": "2026-10-15T14:13:51.108-03:00",
+      "jobUrl": "https://jobs.ashbyhq.com/belvo/161cfb0e-5ee2-4655-b45b-460c066d6c73",
+      "applyUrl": "https://jobs.ashbyhq.com/belvo/161cfb0e-5ee2-4655-b45b-460c066d6c73/application",
+      "descriptionPlain": "A little bit about us: We are Belvo, an open finance API platform with the bold vision of democratizing access to financial services in Latin America."
+    },
+    {
+      "id": "c414f15f-60c4-40b5-a896-d2ad6c7f4415",
+      "title": "Senior Technical Program Manager - Security",
+      "department": "Security",
+      "team": "Security",
+      "employmentType": "FullTime",
+      "location": "US - Remote",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "address": { "postalAddress": { "addressCountry": "United States" } },
+      "publishedAt": "2026-06-25T14:30:54.205-03:00",
+      "jobUrl": "https://jobs.ashbyhq.com/openai/c414f15f-60c4-40b5-a896-d2ad6c7f4415",
+      "applyUrl": "https://jobs.ashbyhq.com/openai/c414f15f-60c4-40b5-a896-d2ad6c7f4415/application",
+      "descriptionPlain": "About the Team: OpenAI builds powerful AI systems like ChatGPT, the OpenAI API, and enterprise products."
+    },
+    {
+      "id": "49ae54dc-3d33-4107-8112-63fac1ee86ca",
+      "title": "IT Support Specialist",
+      "department": "IT",
+      "team": "IT",
+      "employmentType": "FullTime",
+      "location": "San Francisco",
+      "isListed": true,
+      "isRemote": false,
+      "workplaceType": "OnSite",
+      "address": { "postalAddress": { "addressRegion": "California", "addressCountry": "United States", "addressLocality": "San Francisco" } },
+      "publishedAt": "2025-06-26T11:32:00.452-03:00",
+      "jobUrl": "https://jobs.ashbyhq.com/openai/49ae54dc-3d33-4107-8112-63fac1ee86ca",
+      "applyUrl": "https://jobs.ashbyhq.com/openai/49ae54dc-3d33-4107-8112-63fac1ee86ca/application",
+      "descriptionPlain": "About the Team: The IT Services and Support team is responsible for providing seamless, efficient, and reliable IT solutions."
+    },
+    {
+      "id": "fc5bbc77-a30c-4e7a-9acc-8a2e748545b4",
+      "title": "Data Engineer",
+      "department": "Applied AI",
+      "team": "Applied AI Engineering",
+      "employmentType": "FullTime",
+      "location": "San Francisco",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Hybrid",
+      "address": { "postalAddress": { "addressRegion": "California", "addressCountry": "United States", "addressLocality": "San Francisco" } },
+      "publishedAt": "2023-09-26T19:34:48.884-03:00",
+      "jobUrl": "https://jobs.ashbyhq.com/openai/fc5bbc77-a30c-4e7a-9acc-8a2e748545b4",
+      "applyUrl": "https://jobs.ashbyhq.com/openai/fc5bbc77-a30c-4e7a-9acc-8a2e748545b4/application",
+      "descriptionPlain": "About the Team: The Applied team works across research, engineering, product, and design."
+    }
+  ]
+}

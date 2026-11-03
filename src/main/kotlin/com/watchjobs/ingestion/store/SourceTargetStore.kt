@@ -136,17 +136,29 @@ class SourceTargetStore(
             )
         }.list()
 
-    // Segmentos com mais demanda primeiro; sem force, só os não coletados nas últimas 6 horas.
-    fun segments(force: Boolean): List<FetchTarget> {
-        val due = if (force) "" else "AND (last_ingested_at IS NULL OR last_ingested_at <= now() - interval '6 hours')"
-        return jdbc.sql(
+    // Segmentos com mais demanda primeiro. O intervalo é por fonte: sem force, só os que esta fonte não coletou
+    // (COMPLETED ou PARTIAL) nas últimas 6 horas. workModes restringe os modos aceitos (ex.: só REMOTE).
+    fun segments(sourceId: Long, force: Boolean, workModes: List<String>? = null): List<FetchTarget> {
+        val filters = buildList {
+            if (!force) add("AND (r.last_run IS NULL OR r.last_run <= now() - interval '6 hours')")
+            if (workModes != null) add("AND cs.work_mode IN (:workModes)")
+        }.joinToString(" ")
+        var spec = jdbc.sql(
             """
-            SELECT segment_id, role_family, country_code, work_mode, keywords
-              FROM discovery.coverage_segment
-             WHERE is_active $due
-             ORDER BY demand_score DESC, last_ingested_at NULLS FIRST, segment_id
+            SELECT cs.segment_id, cs.role_family, cs.country_code, cs.work_mode, cs.keywords
+              FROM discovery.coverage_segment cs
+              LEFT JOIN LATERAL (
+                   SELECT max(ir.started_at) AS last_run
+                     FROM discovery.ingestion_run ir
+                    WHERE ir.source_id = :sourceId AND ir.segment_id = cs.segment_id
+                      AND ir.status IN ('COMPLETED', 'PARTIAL')
+              ) r ON true
+             WHERE cs.is_active $filters
+             ORDER BY cs.demand_score DESC, r.last_run NULLS FIRST, cs.segment_id
             """
-        ).query { rs, _ ->
+        ).param("sourceId", sourceId)
+        if (workModes != null) spec = spec.param("workModes", workModes)
+        return spec.query { rs, _ ->
             FetchTarget(
                 segmentId = rs.getLong("segment_id"),
                 roleFamily = rs.getString("role_family"),

@@ -10,6 +10,11 @@ import org.springframework.stereotype.Component
 
 enum class WriteOutcome { NEW, UNCHANGED, CHANGED, EXPIRED }
 
+data class KnownJob(val job: NormalizedJob, val seen: JobSeen)
+
+// Vagas de um alvo já separadas: iguais (lote), expiradas (só contam) e as que seguem uma a uma pelo write.
+data class WritePlan(val unchanged: List<KnownJob>, val expired: Int, val individual: List<NormalizedJob>)
+
 // Passos 4 e 5 do pipeline (3.6.1): deduplica pelo job_seen e grava no corpus.
 // Chamado dentro de uma transação por vaga, para uma vaga ruim não derrubar o alvo inteiro.
 @Component
@@ -19,6 +24,36 @@ class JobWriter(
     private val catalog: CatalogStore,
     private val groups: JobGroupStore
 ) {
+    // Mesma decisão do write, com o job_seen do alvo lido de uma vez. Código repetido no lote vai para o write,
+    // que relê o job_seen depois da primeira ocorrência (como no caminho por vaga).
+    fun plan(sourceId: Long, batch: List<NormalizedJob>): WritePlan {
+        val existing = seen.findAll(sourceId, batch.map { it.externalId })
+        val claimed = HashSet<String>()
+        val unchanged = mutableListOf<KnownJob>()
+        val individual = mutableListOf<NormalizedJob>()
+        var expired = 0
+        for (job in batch) {
+            val known = existing[job.externalId]
+            when {
+                !claimed.add(job.externalId) || known == null -> individual += job
+                known.expiredAt != null -> expired++
+                known.contentHash == job.contentHash -> unchanged += KnownJob(job, known)
+                else -> individual += job
+            }
+        }
+        return WritePlan(unchanged, expired, individual)
+    }
+
+    // Caminho UNCHANGED do write em lote: touch, markSeen e, se a linha do corpus sumiu, markExpired.
+    fun touchUnchanged(sourceId: Long, known: List<KnownJob>, runId: Long): Map<String, WriteOutcome> {
+        val alive = jobs.touchAll(known.map { it.seen.key })
+        val (seenAgain, gone) = known.partition { it.seen.key.id in alive }
+        seen.markSeenAll(sourceId, seenAgain.map { it.seen.externalId }, runId)
+        seen.markExpiredAll(sourceId, gone.map { it.seen.externalId })
+        return seenAgain.associate { it.seen.externalId to WriteOutcome.UNCHANGED } +
+            gone.associate { it.seen.externalId to WriteOutcome.EXPIRED }
+    }
+
     fun write(job: NormalizedJob, organizationId: Long?, runId: Long): WriteOutcome {
         val existing = seen.find(job.sourceId, job.externalId)
         return when {
